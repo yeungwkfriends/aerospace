@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>火星探測任務：火箭發射與降落挑戰</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            touch-action: manipulation;
+        }
+        /* Canvas 容器響應式 (高度精簡，避免畫面過長) */
+        #gameCanvas {
+            background: #000;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+        /* 閃爍動畫 */
+        .pulse-btn {
+            animation: pulse-animation 0.8s infinite;
+        }
+        @keyframes pulse-animation {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8); }
+            50% { transform: scale(1.03); box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        /* 震動效果 */
+        .shake {
+            animation: shake-anim 0.2s infinite;
+        }
+        @keyframes shake-anim {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            20% { transform: translate(-2px, 0px) rotate(-1deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            60% { transform: translate(-1px, 1px) rotate(0deg); }
+            80% { transform: translate(2px, 1px) rotate(1deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center p-4">
+
+    <!-- 標題與簡介 -->
+    <header class="text-center my-2 max-w-3xl">
+        <h1 class="text-2xl md:text-3xl font-black text-amber-400 mb-1">🚀 火星探測任務：極限挑戰</h1>
+        <p class="text-slate-300 text-xs md:text-sm">
+            小學六年級科學科專題：認識火箭發射與火星降落的重重困難！<br>
+            請在關鍵時刻按下按鈕，引導火箭安全到達火星。稍有不慎，任務就會失敗！
+        </p>
+    </header>
+
+    <!-- 主遊戲與動畫區域 -->
+    <main class="w-full max-w-4xl flex flex-col items-center">
+        <!-- 狀態與儀表板 -->
+        <div class="w-full bg-slate-800 p-3 rounded-xl mb-2 flex flex-wrap justify-between items-center text-xs md:text-sm border border-slate-700">
+            <div class="flex items-center gap-2">
+                <span class="font-bold text-slate-400">當前階段：</span>
+                <span id="stageName" class="font-bold text-cyan-400">準備發射</span>
+            </div>
+            <div class="flex items-center gap-6">
+                <div><span class="text-slate-400">速度：</span><span id="speedDisplay" class="font-mono font-bold text-emerald-400 text-base">0</span> km/h</div>
+                <div><span class="text-slate-400">高度：</span><span id="altDisplay" class="font-mono font-bold text-amber-400 text-base">0</span> km</div>
+            </div>
+        </div>
+
+        <!-- 動畫 Canvas 區域 (高度縮短適中) -->
+        <div id="canvasContainer" class="relative w-full aspect-[16/8] max-h-[360px]">
+            <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+
+            <!-- 倒數 / 警告覆蓋層 -->
+            <div id="overlay" class="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center rounded-xl transition-all z-20">
+                <h2 id="overlayTitle" class="text-3xl font-extrabold text-amber-400 mb-2">準備好開始任務了嗎？</h2>
+                <p id="overlayDesc" class="text-slate-200 mb-6 max-w-md">火星距離地球數億公里，每一步操作都需要極高的精準度。</p>
+                <button id="startBtn" onclick="startMission()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-8 py-3 rounded-full text-lg shadow-lg hover:scale-105 transition">
+                    發射火箭！
+                </button>
+            </div>
+        </div>
+
+        <!-- 互動控制按鈕區 -->
+        <div class="w-full mt-4 bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col items-center relative">
+            
+            <!-- 倒數秒數提示 (大字顯眼) -->
+            <div id="timerContainer" class="hidden mb-2 flex items-center justify-center gap-2 bg-red-950/80 border border-red-500/50 px-4 py-1 rounded-full">
+                <span class="text-red-400 text-sm font-bold">⏱️ 倒數計時：</span>
+                <span id="timerDisplay" class="text-3xl md:text-4xl font-black font-mono text-red-500 tracking-wider">3.0s</span>
+            </div>
+
+            <div id="instructionText" class="text-slate-300 font-bold mb-3 text-center min-h-[1.5rem]">
+                點擊上方按鈕開始發射。
+            </div>
+            
+            <button id="actionBtn" onclick="handleActionButton()" disabled 
+                class="w-full md:w-2/3 py-4 rounded-xl text-xl font-black transition shadow-lg opacity-50 cursor-not-allowed bg-slate-600 text-slate-300">
+                等待指示...
+            </button>
+        </div>
+
+        <!-- 科學知識說明區卡片 -->
+        <div class="w-full mt-6 bg-slate-800/60 p-5 rounded-xl border border-slate-700">
+            <h3 class="text-lg font-bold text-amber-400 mb-2 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                小六科學知識卡：為何飛往火星這麼困難？
+            </h3>
+            <ul class="list-disc list-inside text-sm text-slate-300 space-y-1">
+                <li><strong class="text-white">克服地心吸力：</strong>火箭需要極大的推進力才能達到「逃逸速度」，擺脫地球引力。</li>
+                <li><strong class="text-white">高空級段分離：</strong>在約 60–80 公里高空，第一級燃料耗盡後必須立刻拋棄死重，第二級才能繼續加速進入太空。</li>
+                <li><strong class="text-white">深空太陽能供電：</strong>進入太空巡航軌道後，飛船必須及時展開兩側大型太陽能板，為長達數月的漫長飛行提供持續電力。</li>
+                <li><strong class="text-white">大氣摩擦減速：</strong>高速進入火星大氣時會產生巨大摩擦力與高溫，防熱盾能保護火箭並進行首輪大幅減速。</li>
+                <li><strong class="text-white">減速傘與反推力：</strong>火星引力會加速下墜，必須配合減速傘與反推火箭才能實現安全的軟著陸。</li>
+            </ul>
+        </div>
+    </main>
+
+    <script>
+        // --- 畫布與遊戲狀態 ---
+        const canvas = document.getElementById('gameCanvas');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const ctx = canvas.getContext('2d');
+        
+        function resizeCanvas() {
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // 階段定義
+        // 0: Ready
+        // 1: Launch (發射升空)
+        // 2: Stage Separation (級段分離)
+        // 2.5: Earth-to-Mars Cruise (地火轉移長途太空漫飛)
+        // 3: Mars Entry (進入火星大氣層)
+        // 4: Parachute Deploy (降落傘/火星下墜)
+        // 5: Touchdown (安全著陸與火星車駛出)
+        // -1: Failed (失敗)
+        let stage = 0;
+        let actionWindowStart = 0;
+        let actionWindowDuration = 0;
+        let failureType = ""; // 失敗種類紀錄
+
+        // 火箭與環境狀態變數
+        let rocketY = 0;
+        let rocketX = 0;
+        let rocketAngle = 0; // 火箭傾角
+        let rocketSpeed = 0;
+        let altitude = 0;
+        let particles = [];
+        let stars = []; // 星光粒子
+        let debrisList = []; // 分離後的金屬推進器組件
+        
+        let stageSeparated = false;
+        let parachuteOpened = false;
+        let isBoosted = false; // 推進爆發效果
+        let isBraking = false; // 大氣摩擦減速效果
+        let actionCompleted = false; // 紀錄玩家是否已成功按下按鈕
+
+        // 渡過飛行變數
+        let cruiseProgress = 0;
+        let spacecraftSolarProgress = 0; // 飛船太空太陽能板展開進度
+        let spacecraftSolarDeployed = false;
+
+        // 火星車狀態
+        let roverX = 0;
+        let roverDeployed = false;
+        let isRoverMoving = false;
+        let solarPanelProgress = 0; // 太陽能板展開進度 (0 到 1)
+        let isDeployingSolarPanels = false;
+
+        // UI 元素
+        const stageNameEl = document.getElementById('stageName');
+        const speedDisplayEl = document.getElementById('speedDisplay');
+        const altDisplayEl = document.getElementById('altDisplay');
+        const overlayEl = document.getElementById('overlay');
+        const overlayTitleEl = document.getElementById('overlayTitle');
+        const overlayDescEl = document.getElementById('overlayDesc');
+        const startBtnEl = document.getElementById('startBtn');
+        const actionBtnEl = document.getElementById('actionBtn');
+        const instructionTextEl = document.getElementById('instructionText');
+        const timerContainerEl = document.getElementById('timerContainer');
+        const timerDisplayEl = document.getElementById('timerDisplay');
+
+        // 初始化星空背景粒子
+        for (let i = 0; i < 40; i++) {
+            stars.push({
+                x: Math.random() * 800,
+                y: Math.random() * 400,
+                size: Math.random() * 2 + 1,
+                speed: Math.random() * 50 + 20
+            });
+        }
+
+        // --- 遊戲主循環 ---
+        let lastTime = performance.now();
+        function gameLoop(now) {
+            const dt = (now - lastTime) / 1000;
+            lastTime = now;
+
+            update(dt, now);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- 邏輯更新 ---
+        function update(dt, now) {
+            if (stage === 0) return;
+
+            // 計算倒數時間 (僅限需要玩家互動操作，且玩家尚未完成操作的階段)
+            if (!actionCompleted && (stage === 1 || stage === 2 || stage === 2.5 || stage === 3 || stage === 4)) {
+                const remaining = Math.max(0, (actionWindowDuration - (now - actionWindowStart)) / 1000);
+                timerDisplayEl.innerText = remaining.toFixed(1) + "s";
+
+                // 時間到的失敗判斷
+                if (remaining <= 0) {
+                    handleTimeOutFailure();
+                    return;
+                }
+            }
+
+            // 更新通用粒子
+            particles.forEach((p, index) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= p.decay;
+                if (p.alpha <= 0) particles.splice(index, 1);
+            });
+
+            // 更新分離組件
+            debrisList.forEach((d, index) => {
+                d.x += d.vx;
+                d.y += d.vy;
+                d.angle += d.vRot;
+                // 不再透明化消失，保持不變，直到飛出畫面外才清理
+                if (d.x < -100 || d.x > canvas.width + 100 || d.y > canvas.height + 100) {
+                    debrisList.splice(index, 1);
+                }
+            });
+
+            // 根據階段更新物理
+            switch(stage) {
+                case 1: // 階段 1：發射升空
+                    if (isBoosted) {
+                        rocketSpeed = Math.min(28000, rocketSpeed + dt * 25000);
+                        altitude += dt * 180;
+                        rocketY = Math.max(canvas.height * 0.35, rocketY - dt * 280);
+                        createThrusterParticles(rocketX, rocketY + 35, 14, true); 
+                    } else {
+                        altitude += dt * 30;
+                        rocketSpeed = 3000 + altitude * 50;
+                        rocketY = canvas.height - 70 - (altitude / 100) * (canvas.height * 0.2);
+                        createThrusterParticles(rocketX, rocketY + 35, 4, false);
+                    }
+                    break;
+
+                case 2: // 階段 2：級段分離
+                    altitude += dt * 120;
+                    rocketSpeed = 28000 + (altitude * 40);
+                    rocketY = canvas.height * 0.35;
+                    createThrusterParticles(rocketX, rocketY + 25, 3, false);
+                    break;
+
+                case 2.5: // 階段 2.5：地火轉移軌道 (地球飛往火星的大氣外長途太空漫飛行)
+                    // 飛船太陽能板展開與航行 logic
+                    if (spacecraftSolarDeployed) {
+                        if (spacecraftSolarProgress < 1) {
+                            spacecraftSolarProgress = Math.min(1, spacecraftSolarProgress + dt * 2.0);
+                        }
+                        // 按下按鈕後進行約 3 秒的深空漫游動畫
+                        cruiseProgress += dt / 3.0; 
+                        rocketSpeed = Math.max(12000, 28000 - cruiseProgress * 8000);
+                        altitude = Math.max(300, 1000 - cruiseProgress * 400);
+
+                        // 飛船平穩向右下深空漫遊，遠離左下方的地球
+                        rocketX = canvas.width * 0.35 + cruiseProgress * (canvas.width * 0.3);
+                        rocketY = canvas.height * 0.35 + Math.sin(cruiseProgress * Math.PI) * 15;
+                        rocketAngle = 0.15; // 微微傾斜航行
+                    } else {
+                        // 還未按下按鈕前，飛船於深空靜止巡航 (已明顯遠離地球)
+                        rocketX = canvas.width * 0.35;
+                        rocketY = canvas.height * 0.35;
+                        rocketAngle = 0.15;
+                        rocketSpeed = 28000;
+                        altitude = 1000;
+                    }
+
+                    // 移動背景星光粒子，營造高速太空穿梭感
+                    stars.forEach(s => {
+                        s.x -= dt * s.speed * 1.5;
+                        if (s.x < 0) s.x = canvas.width;
+                    });
+
+                    // 地火航行完成（3秒結束），接近火星，自動進入階段 3 (進入火星大氣層)
+                    if (cruiseProgress >= 1) {
+                        enterStage3();
+                    }
+                    break;
+
+                case 3: // 階段 3：進入火星大氣層
+                    if (isBraking) {
+                        rocketSpeed = Math.max(8000, rocketSpeed - dt * 12000); 
+                        createFrictionParticles(rocketX, rocketY + 15, 8); 
+                    } else {
+                        rocketSpeed = 26000;
+                        rocketX += dt * 120;
+                        rocketY += dt * 70;
+                    }
+                    break;
+
+                case 4: // 階段 4：火星降落 (火星重力加速下墜)
+                    altitude = Math.max(0, altitude - dt * 35);
+                    if (parachuteOpened) {
+                        // 開傘後大幅減速並慢慢平穩下墜
+                        rocketSpeed = Math.max(300, rocketSpeed - dt * 8000);
+                        rocketY = Math.min(canvas.height - 70, rocketY + dt * 20);
+                    } else {
+                        // 未開傘前受火星重力影響加速下墜，精確控制在 2.5 秒倒數結束時剛好到達火星地面
+                        rocketSpeed += dt * 3000; 
+                        const targetGroundY = canvas.height - 70;
+                        const startY = canvas.height * 0.25;
+                        const fallSpeed = (targetGroundY - startY) / 2.5; 
+                        rocketY = Math.min(targetGroundY, rocketY + dt * fallSpeed);
+                    }
+                    break;
+
+                case 5: // 最終安全軟著陸與駛出火星車
+                    if (rocketY < canvas.height - 70) {
+                        rocketY += dt * 35;
+                        altitude = Math.max(0, altitude - dt * 10);
+                        rocketSpeed = Math.max(0, rocketSpeed - dt * 800);
+                        createThrusterParticles(rocketX, rocketY + 15, 2, false); 
+                    } else {
+                        rocketY = canvas.height - 70;
+                        altitude = 0;
+                        rocketSpeed = 0;
+
+                        // 著陸完成，駛出火星車
+                        if (!roverDeployed) {
+                            roverDeployed = true;
+                            roverX = rocketX;
+                            isRoverMoving = true;
+                            solarPanelProgress = 0;
+                            isDeployingSolarPanels = false;
+                        }
+
+                        if (isRoverMoving) {
+                            if (roverX < rocketX + 50) {
+                                roverX += dt * 25;
+                            } else {
+                                roverX = rocketX + 50;
+                                isRoverMoving = false;
+                                isDeployingSolarPanels = true;
+                                instructionTextEl.innerText = "⚡ 火星探測車已駛出！正在展開太陽能電池板吸收光能...";
+                            }
+                        } else if (isDeployingSolarPanels) {
+                            solarPanelProgress += dt * 0.7; // 約 1.5 秒展開動畫
+                            if (solarPanelProgress >= 1) {
+                                solarPanelProgress = 1;
+                                isDeployingSolarPanels = false;
+                                showSuccess();
+                            }
+                        }
+                    }
+                    break;
+
+                case -1: // 失敗動畫處理
+                    updateFailureAnimation(dt);
+                    break;
+            }
+
+            // 更新儀表板數據
+            speedDisplayEl.innerText = Math.round(rocketSpeed).toLocaleString();
+            altDisplayEl.innerText = Math.round(altitude).toLocaleString();
+        }
+
+        // --- 失敗場景專屬動畫 ---
+        function handleTimeOutFailure() {
+            if (stage === 1) {
+                failureType = "boost_fail";
+                triggerFailure("推進力不足！", "沒有及時按「加大推進力」，火箭無法克服地球引力，墜回地面！");
+            } else if (stage === 2) {
+                failureType = "sep_fail";
+                triggerFailure("錯過分離時機！", "第一級推進器燃料已耗盡！如果不立刻在大氣層高空（約60-80km）拋棄這幾十噸重的死重，第二級引擎無法繼續加速衝出大氣層！");
+            } else if (stage === 2.5) {
+                failureType = "power_fail";
+                triggerFailure("飛船失去電力！", "進入深空巡航後未能在限時內展開太陽能板，飛船系統電力耗盡陷入死寂，成為漂流的太空垃圾！");
+            } else if (stage === 3) {
+                failureType = "flyby_fail"; 
+                triggerFailure("沒有在大氣層減速！", "火箭速度過快且沒有在大氣層中進行減速，像流星一樣直接飛過了火星，消失在宇宙深處！");
+            } else if (stage === 4) {
+                failureType = "crash_fail";
+                triggerFailure("降落傘打開太遲！", "火星重力加速了下墜速度，降落傘沒有及時打開！火箭以極高速撞擊火星表面爆炸墜毀！");
+            }
+        }
+
+        function updateFailureAnimation(dt) {
+            if (failureType === "power_fail") {
+                // 電力耗盡：飛船失去控制，緩慢翻滾並在深空中漂流
+                rocketX += dt * 40;
+                rocketY += dt * 20;
+                rocketAngle += dt * 0.5;
+            } else if (failureType === "flyby_fail") {
+                rocketX += dt * 900;
+                rocketY -= dt * 450;
+                rocketSpeed = 28000;
+                createThrusterParticles(rocketX, rocketY, 3, false);
+            } else if (failureType === "crash_fail") {
+                // 墜毀在火星地面：固定於地表並持續產生爆炸與煙霧
+                rocketY = canvas.height - 70;
+                rocketAngle = 0.4; 
+                createExplosionParticles(rocketX, rocketY, 6);
+            } else {
+                rocketY += dt * 320;
+                rocketAngle += dt * 3;
+                createExplosionParticles(rocketX, rocketY, 3);
+            }
+        }
+
+        // --- 繪圖 functions ---
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 背景繪製
+            drawBackground();
+
+            // 繪製分離的組件
+            drawDebris();
+
+            // 繪製粒子
+            drawParticles();
+
+            // 繪製火箭
+            if (stage > 0 || stage === -1) {
+                drawRocket();
+            }
+
+            // 繪製火星車
+            if (roverDeployed) {
+                drawRover();
+            }
+        }
+
+        function drawBackground() {
+            // 永遠先繪製深黑太空背景
+            ctx.fillStyle = '#020617';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 星光粒子動態繪製 (隨著離地爬升，星光漸漸清晰)
+            let starAlpha = 1;
+            if (stage === 1 || stage === 2) {
+                starAlpha = Math.min(1, Math.max(0, (altitude - 30) / 70));
+            }
+            if (starAlpha > 0) {
+                ctx.save();
+                ctx.globalAlpha = starAlpha;
+                ctx.fillStyle = '#ffffff';
+                stars.forEach(s => {
+                    ctx.fillRect(s.x, s.y, s.size, s.size);
+                });
+                ctx.restore();
+            }
+
+            if (stage === 1 || stage === 2 || (stage === -1 && (failureType === 'boost_fail' || failureType === 'sep_fail'))) {
+                // 藍色大氣層隨高度增加逐漸變薄消失
+                let skyAlpha = Math.max(0, 1 - altitude / 120);
+                if (skyAlpha > 0) {
+                    ctx.save();
+                    ctx.globalAlpha = skyAlpha;
+                    let grad = ctx.createLinearGradient(0, canvas.height, 0, 0);
+                    grad.addColorStop(0, '#38bdf8');
+                    grad.addColorStop(0.6, '#0f172a');
+                    grad.addColorStop(1, '#020617');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.restore();
+                }
+
+                // 綠色長方形地球表面 (隨著高度升高向下滑出畫面)
+                ctx.save();
+                let groundY = canvas.height - 35 + (altitude / 40) * 80;
+                if (groundY < canvas.height) {
+                    ctx.fillStyle = '#166534';
+                    ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+                }
+                ctx.restore();
+
+            } else if (stage === 2.5 || stage === 3 || failureType === 'flyby_fail') {
+                // 地球漸漸遠去：進入地火轉移軌道後，地球位於左下方遠處並逐漸縮小淡出
+                if (stage === 2.5 || failureType === 'power_fail') {
+                    ctx.save();
+                    let earthFade = Math.max(0, 1 - cruiseProgress * 1.2);
+                    if (earthFade > 0) {
+                        ctx.globalAlpha = earthFade;
+                        // 地球位於左下遠處，半徑顯著縮小（50px），與前方飛船（x: 35%）拉開距離
+                        let earthRadius = Math.max(8, 50 * (1 - cruiseProgress * 0.8));
+                        let earthX = canvas.width * 0.1 - cruiseProgress * (canvas.width * 0.2);
+                        let earthY = canvas.height * 0.85 + cruiseProgress * (canvas.height * 0.15);
+
+                        let gradE = ctx.createRadialGradient(earthX, earthY, 5, earthX, earthY, earthRadius);
+                        gradE.addColorStop(0, '#60a5fa');
+                        gradE.addColorStop(0.6, '#1d4ed8');
+                        gradE.addColorStop(0.95, '#1e3a8a');
+                        gradE.addColorStop(1, 'transparent');
+
+                        ctx.fillStyle = gradE;
+                        ctx.beginPath();
+                        ctx.arc(earthX, earthY, earthRadius, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    ctx.restore();
+                }
+
+                // 火星繪製：在剛進入階段 2.5 (未展開太陽能板) 時完全不顯示火星
+                // 展開太陽能板後隨著 3 秒航行推進，火星才逐漸由遠處紅點放大浮現
+                if (stage === 2.5) {
+                    if (cruiseProgress > 0) {
+                        ctx.save();
+                        ctx.globalAlpha = Math.min(1, cruiseProgress * 1.5);
+                        let radius = 15 + cruiseProgress * 205; // 從遠處微小紅點放大至 220px
+                        let gradM = ctx.createRadialGradient(canvas.width * 0.85, canvas.height * 0.85, 10, canvas.width * 0.85, canvas.height * 0.85, radius);
+                        gradM.addColorStop(0, '#ef4444');
+                        gradM.addColorStop(0.7, '#7f1d1d');
+                        gradM.addColorStop(1, 'transparent');
+                        ctx.fillStyle = gradM;
+                        ctx.beginPath();
+                        ctx.arc(canvas.width * 0.85, canvas.height * 0.85, radius, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                } else {
+                    // 階段 3 或飛過失敗時的大火星
+                    let radius = 220;
+                    let grad = ctx.createRadialGradient(canvas.width * 0.85, canvas.height * 0.85, 20, canvas.width * 0.85, canvas.height * 0.85, radius);
+                    grad.addColorStop(0, '#ef4444');
+                    grad.addColorStop(0.7, '#7f1d1d');
+                    grad.addColorStop(1, 'transparent');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(canvas.width * 0.85, canvas.height * 0.85, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else if (stage === 4 || stage === 5 || failureType === 'crash_fail') {
+                let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                grad.addColorStop(0, '#450a0a');
+                grad.addColorStop(0.5, '#991b1b');
+                grad.addColorStop(1, '#7f1d1d');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#7c2d12';
+                ctx.beginPath();
+                ctx.moveTo(0, canvas.height - 35);
+                ctx.quadraticCurveTo(canvas.width * 0.3, canvas.height - 55, canvas.width * 0.6, canvas.height - 35);
+                ctx.quadraticCurveTo(canvas.width * 0.8, canvas.height - 15, canvas.width, canvas.height - 40);
+                ctx.lineTo(canvas.width, canvas.height);
+                ctx.lineTo(0, canvas.height);
+                ctx.fill();
+            }
+        }
+
+        function drawRocket() {
+            ctx.save();
+            ctx.translate(rocketX, rocketY);
+            ctx.rotate(rocketAngle);
+
+            if (parachuteOpened) {
+                ctx.fillStyle = '#f97316';
+                ctx.beginPath();
+                ctx.arc(0, -55, 30, Math.PI, 0, false);
+                ctx.fill();
+
+                ctx.strokeStyle = '#f8fafc';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(-30, -55); ctx.lineTo(-4, -18);
+                ctx.moveTo(30, -55); ctx.lineTo(4, -18);
+                ctx.moveTo(0, -55); ctx.lineTo(0, -18);
+                ctx.stroke();
+            }
+
+            // 繪製飛船太空巡航段太陽能板 (僅在深空巡航階段或電力失效時顯示，進入火星大氣及降落著陸後自動移除)
+            if (spacecraftSolarProgress > 0 && (stage === 2.5 || failureType === 'power_fail')) {
+                const wingLen = 22 * spacecraftSolarProgress;
+                ctx.fillStyle = '#0284c7';
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 1.2;
+
+                // 左太陽能翼
+                ctx.fillRect(-9 - wingLen, -3, wingLen, 6);
+                ctx.strokeRect(-9 - wingLen, -3, wingLen, 6);
+                
+                // 右太陽能翼
+                ctx.fillRect(9, -3, wingLen, 6);
+                ctx.strokeRect(9, -3, wingLen, 6);
+
+                // 太陽能板網格細節
+                ctx.strokeStyle = '#7dd3fc';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-9 - wingLen / 2, -3); ctx.lineTo(-9 - wingLen / 2, 3);
+                ctx.moveTo(9 + wingLen / 2, -3); ctx.lineTo(9 + wingLen / 2, 3);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = '#f8fafc';
+            ctx.beginPath();
+            ctx.moveTo(0, -22);
+            ctx.lineTo(9, -4);
+            ctx.lineTo(9, 14);
+            ctx.lineTo(-9, 14);
+            ctx.lineTo(-9, -4);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(-5, -2, 10, 3);
+
+            if (!stageSeparated) {
+                ctx.fillStyle = '#475569';
+                ctx.fillRect(-10, 14, 20, 3);
+
+                ctx.fillStyle = '#cbd5e1';
+                ctx.fillRect(-11, 17, 22, 22);
+
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.moveTo(-11, 28); ctx.lineTo(-16, 39); ctx.lineTo(-11, 39); ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(11, 28); ctx.lineTo(16, 39); ctx.lineTo(11, 39); ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        // 繪製分離出來的火箭組件
+        function drawDebris() {
+            debrisList.forEach(d => {
+                ctx.save();
+                ctx.globalAlpha = d.alpha;
+                ctx.translate(d.x, d.y);
+                ctx.rotate(d.angle);
+
+                ctx.fillStyle = '#64748b';
+                ctx.fillRect(-12, -10, 24, 20);
+                
+                ctx.fillStyle = '#334155';
+                ctx.beginPath();
+                ctx.moveTo(-10, 10); ctx.lineTo(-14, 20); ctx.lineTo(-6, 20); ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(10, 10); ctx.lineTo(14, 20); ctx.lineTo(6, 20); ctx.fill();
+
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(-12, -6, 24, 4);
+
+                ctx.restore();
+            });
+        }
+
+        // 繪製火星探測車 (Rover)
+        function drawRover() {
+            ctx.save();
+            ctx.translate(roverX, canvas.height - 45);
+
+            // 車身
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillRect(-12, -10, 24, 10);
+
+            // 太陽能板 (折疊到展開過程)
+            ctx.fillStyle = '#0284c7';
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 1;
+
+            const panelWidth = 14 * solarPanelProgress; // 動態寬度由 0 到 14
+
+            if (solarPanelProgress > 0) {
+                // 左翼太陽能板
+                ctx.beginPath();
+                ctx.rect(-10 - panelWidth, -13, panelWidth, 4);
+                ctx.fill();
+                ctx.stroke();
+
+                // 右翼太陽能板
+                ctx.beginPath();
+                ctx.rect(10, -13, panelWidth, 4);
+                ctx.fill();
+                ctx.stroke();
+            } else {
+                // 折疊狀態 (車頂小塊)
+                ctx.fillRect(-6, -13, 12, 3);
+            }
+
+            // 桅桿與天線 / 攝影機
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(6, -10);
+            ctx.lineTo(6, -20);
+            ctx.stroke();
+
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.arc(6, -21, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 車輪
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.arc(-10, 2, 3.5, 0, Math.PI * 2);
+            ctx.arc(0, 2, 3.5, 0, Math.PI * 2);
+            ctx.arc(10, 2, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        // --- 粒子生成系統 ---
+        function createThrusterParticles(x, y, count, isSuper) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x + (Math.random() - 0.5) * (isSuper ? 16 : 8),
+                    y: y,
+                    vx: (Math.random() - 0.5) * (isSuper ? 6 : 2),
+                    vy: Math.random() * (isSuper ? 8 : 4) + (isSuper ? 6 : 3),
+                    color: Math.random() > 0.3 ? (isSuper ? '#ef4444' : '#f97316') : '#facc15',
+                    radius: Math.random() * (isSuper ? 6 : 3) + (isSuper ? 3 : 2),
+                    alpha: 1,
+                    decay: Math.random() * 0.05 + 0.02
+                });
+            }
+        }
+
+        function createFrictionParticles(x, y, count) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x + (Math.random() - 0.5) * 20,
+                    y: y + (Math.random() - 0.5) * 10,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: -(Math.random() * 4 + 2),
+                    color: Math.random() > 0.5 ? '#ef4444' : '#f97316',
+                    radius: Math.random() * 5 + 2,
+                    alpha: 1,
+                    decay: 0.06
+                });
+            }
+        }
+
+        function createExplosionParticles(x, y, count) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 14,
+                    vy: (Math.random() - 0.5) * 14,
+                    color: Math.random() > 0.4 ? '#f97316' : '#ef4444',
+                    radius: Math.random() * 6 + 4,
+                    alpha: 1,
+                    decay: 0.03
+                });
+            }
+        }
+
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+        }
+
+        // --- 任務階段流程 ---
+
+        function startMission() {
+            overlayEl.classList.add('hidden');
+            stage = 1;
+            stageSeparated = false;
+            parachuteOpened = false;
+            isBoosted = false;
+            isBraking = false;
+            cruiseProgress = 0;
+            spacecraftSolarProgress = 0;
+            spacecraftSolarDeployed = false;
+            roverDeployed = false;
+            isRoverMoving = false;
+            solarPanelProgress = 0;
+            isDeployingSolarPanels = false;
+            rocketX = canvas.width / 2;
+            rocketY = canvas.height - 70;
+            rocketAngle = 0;
+            altitude = 0;
+            rocketSpeed = 0;
+            debrisList = [];
+            particles = [];
+            failureType = "";
+            
+            enterStage1();
+        }
+
+        function enterStage1() {
+            actionCompleted = false;
+            stageNameEl.innerText = "階段 1：發射升空";
+            instructionTextEl.innerText = "⚠️ 警告：火箭升空中！請在倒數結束前按「加大推進力」，否則無法擺脫地心吸力！";
+            
+            timerContainerEl.classList.remove('hidden');
+            enableActionButton("🔥 加大推進力！(爆發升空)", "bg-red-600 hover:bg-red-500 text-white pulse-btn");
+            
+            actionWindowStart = performance.now();
+            actionWindowDuration = 3500;
+        }
+
+        function enterStage2() {
+            stage = 2;
+            actionCompleted = false;
+            stageNameEl.innerText = "階段 2：級段分離";
+            instructionTextEl.innerText = "⚠️ 警告：第一級推進器燃料耗盡！請按「分離推進器」拋棄重量！";
+
+            enableActionButton("✂️ 分離推進器！", "bg-amber-500 hover:bg-amber-400 text-slate-950 pulse-btn");
+
+            actionWindowStart = performance.now();
+            actionWindowDuration = 3000;
+        }
+
+        // 階段 2.5：地火轉移軌道 (地球飛往火星的長途太空漫飛行)
+        function startEarthToMarsCruise() {
+            stage = 2.5;
+            actionCompleted = false;
+            cruiseProgress = 0;
+            spacecraftSolarProgress = 0;
+            spacecraftSolarDeployed = false;
+
+            timerContainerEl.classList.remove('hidden'); // 加入倒數計時
+            stageNameEl.innerText = "地火轉移軌道：深空巡航";
+            instructionTextEl.innerText = "⚠️ 警告：進入太空！請在倒數結束前「展開太陽能板」，否則飛船將失去電力！";
+            
+            enableActionButton("☀️ 展開飛船太陽能板！", "bg-sky-600 hover:bg-sky-500 text-white pulse-btn");
+
+            actionWindowStart = performance.now();
+            actionWindowDuration = 3500;
+        }
+
+        function enterStage3() {
+            stage = 3;
+            actionCompleted = false;
+            stageSeparated = true;
+            rocketX = canvas.width * 0.3;
+            rocketY = canvas.height * 0.3;
+            stageNameEl.innerText = "階段 3：進入火星大氣層";
+            instructionTextEl.innerText = "⚠️ 警告：正在高速接近火星！請按「進行大氣減速」，否則會飛過火星！";
+
+            timerContainerEl.classList.remove('hidden');
+            enableActionButton("🛡️ 進行大氣減速！(摩擦減速)", "bg-orange-600 hover:bg-orange-500 text-white pulse-btn");
+
+            actionWindowStart = performance.now();
+            actionWindowDuration = 3000; 
+        }
+
+        function enterStage4() {
+            stage = 4;
+            actionCompleted = false;
+            isBraking = false;
+            rocketX = canvas.width * 0.5;
+            rocketY = canvas.height * 0.25; // 設定降落起點高度
+            rocketAngle = 0;
+            stageNameEl.innerText = "階段 4：火星降落";
+            instructionTextEl.innerText = "⚠️ 警告：已進入低空降落區！正在受火星引力急速下墜，請按「開啟降落傘」！";
+
+            timerContainerEl.classList.remove('hidden');
+            enableActionButton("🪂 開啟降落傘！", "bg-emerald-600 hover:bg-emerald-500 text-white pulse-btn");
+
+            actionWindowStart = performance.now();
+            actionWindowDuration = 2500;
+        }
+
+        function enterStage5() {
+            stage = 5;
+            actionCompleted = true;
+            parachuteOpened = true;
+            timerContainerEl.classList.add('hidden');
+            stageNameEl.innerText = "階段 5：順利著陸中";
+            instructionTextEl.innerText = "✅ 降落傘成功張開！反推火箭啟動，正在平穩下降著陸...";
+            
+            disableActionButton("著陸程序進行中...", "bg-slate-700 text-slate-400");
+        }
+
+        function handleActionButton() {
+            actionCompleted = true; // 玩家已完成按鈕動作，停止該階段倒數判定
+
+            if (stage === 1) {
+                isBoosted = true;
+                canvasContainer.classList.add('shake');
+                setTimeout(() => canvasContainer.classList.remove('shake'), 600);
+                
+                disableActionButton("推進力已最大化！", "bg-slate-700 text-slate-400");
+                setTimeout(enterStage2, 1200);
+
+            } else if (stage === 2) {
+                stageSeparated = true;
+                // 分離推進器：給予更明顯的翻滾與向後下方脫離速度
+                debrisList.push({
+                    x: rocketX,
+                    y: rocketY + 20,
+                    vx: -3.5 - Math.random() * 2, // 明顯向左後方飄移
+                    vy: 3.0 + Math.random() * 2,  // 向下下墜
+                    angle: 0,
+                    vRot: 0.08,                   // 保持翻滾
+                    alpha: 1
+                });
+
+                disableActionButton("推進器成功分離！", "bg-slate-700 text-slate-400");
+                // 分離後，開始地球前往火星的長途太空飛行
+                setTimeout(startEarthToMarsCruise, 1200);
+
+            } else if (stage === 2.5) {
+                spacecraftSolarDeployed = true;
+                timerContainerEl.classList.add('hidden'); // 成功展開後隱藏計時器
+                disableActionButton("🌌 漫長地火航行中 (約 3 秒)...", "bg-slate-700 text-cyan-400");
+                instructionTextEl.innerText = "⚡ 太陽能板成功展開！飛船獲得充足光能，正在進行長達數億公里的深空漫遊飛往火星...";
+
+            } else if (stage === 3) {
+                isBraking = true;
+                disableActionButton("大氣摩擦減速中...", "bg-slate-700 text-slate-400");
+                setTimeout(enterStage4, 1200);
+
+            } else if (stage === 4) {
+                parachuteOpened = true;
+                enterStage5();
+            }
+        }
+
+        function enableActionButton(text, styleClass) {
+            actionBtnEl.disabled = false;
+            actionBtnEl.innerText = text;
+            actionBtnEl.className = `w-full md:w-2/3 py-4 rounded-xl text-xl font-black transition shadow-lg cursor-pointer ${styleClass}`;
+        }
+
+        function disableActionButton(text, styleClass) {
+            actionBtnEl.disabled = true;
+            actionBtnEl.innerText = text;
+            actionBtnEl.className = `w-full md:w-2/3 py-4 rounded-xl text-xl font-black transition shadow-lg opacity-50 cursor-not-allowed ${styleClass}`;
+        }
+
+        function triggerFailure(title, reason) {
+            stage = -1;
+            timerContainerEl.classList.add('hidden');
+            disableActionButton("任務失敗！", "bg-slate-800 text-red-500 border border-red-500");
+
+            setTimeout(() => {
+                overlayTitleEl.innerText = "❌ 任務失敗：" + title;
+                overlayTitleEl.className = "text-3xl font-extrabold text-red-500 mb-2";
+                overlayDescEl.innerText = reason;
+                startBtnEl.innerText = "重新挑戰任務";
+                overlayEl.classList.remove('hidden');
+            }, 1500);
+        }
+
+        function showSuccess() {
+            setTimeout(() => {
+                overlayTitleEl.innerText = "🎉 任務成功！成功著陸火星！";
+                overlayTitleEl.className = "text-3xl font-extrabold text-emerald-400 mb-2";
+                overlayDescEl.innerText = "恭喜你！你成功帶領國家航天團隊克服重重困難著陸火星！「火星探測車」已經順利駛出艙門，並成功展開太陽能電池板，正式開啟火星科學探索任務！";
+                startBtnEl.innerText = "再玩一次";
+                overlayEl.classList.remove('hidden');
+            }, 600);
+        }
+
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
