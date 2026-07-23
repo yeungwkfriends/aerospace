@@ -96,8 +96,8 @@
                     <span class="text-red-400">15km (過低撞擊)</span>
                 </div>
                 <div class="w-full h-4 bg-red-900/50 rounded-full overflow-hidden relative border border-slate-600">
-                    <!-- 綠色安全區域標示 -->
-                    <div class="absolute top-0 bottom-0 bg-emerald-500/40 border-x-2 border-emerald-400" style="left: 40%; right: 20%;"></div>
+                    <!-- 綠色安全區域標示 (精確對齊 45km - 15km 邏輯位置: 47.06% 到 82.35%) -->
+                    <div class="absolute top-0 bottom-0 bg-emerald-500/40 border-x-2 border-emerald-400" style="left: 47.06%; right: 17.65%;"></div>
                     <!-- 當前高度指示標記 -->
                     <div id="altPointer" class="absolute top-0 bottom-0 w-2.5 bg-amber-400 shadow-[0_0_8px_#fbbf24] transition-all duration-75" style="left: 0%;"></div>
                 </div>
@@ -909,11 +909,11 @@
                     if (altitude > 45) {
                         failureType = "chute_high_fail";
                         parachuteTorn = true;
-                        triggerFailure("開傘高度太高！", "在超過 45km 的高空開傘，速度仍太快，降落傘承受的拉力不足以支撐而失效！");
+                        triggerFailure("開傘高度太高！", `當前高度為 ${Math.round(altitude)}km (超過 45km)！高度太高導致速度過快，降落傘被撕裂！`);
                         return;
                     } else if (altitude < 15) {
                         failureType = "chute_low_fail";
-                        triggerFailure("開傘高度太低！", "在低於 15km 才開傘，沒有足夠距離及時間減速，飛船以高速撞毀！");
+                        triggerFailure("開傘高度太低！", `當前高度為 ${Math.round(altitude)}km (低於 15km)！高度太低無法有效減速，飛船撞毀！`);
                         return;
                     } else {
                         parachuteOpened = true;
