@@ -46,8 +46,8 @@
     <header class="text-center my-2 max-w-3xl">
         <h1 class="text-2xl md:text-3xl font-black text-amber-400 mb-1">🚀 火星探測任務：多重指令挑戰</h1>
         <p class="text-slate-300 text-xs md:text-sm">
-            小學六年級科學科專題：認識火箭發射與火星降落的重重困難！<br>
-            請在限時內從多個指令按鈕中<strong>選出正確的操作</strong>。每關按鈕位置都會隨機打亂，選錯按鈕不會生效！
+            認識從發射火箭到降落火星的重重困難！<br>
+            請在限時內<strong>選出正確的操作按鈕</strong>。
         </p>
     </header>
 
@@ -131,14 +131,14 @@
         <div class="w-full mt-6 bg-slate-800/60 p-5 rounded-xl border border-slate-700">
             <h3 class="text-lg font-bold text-amber-400 mb-2 flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                小六科學知識卡：為何飛往火星這麼困難？
+                科學知識卡：為何飛往火星這麼困難？
             </h3>
             <ul class="list-disc list-inside text-sm text-slate-300 space-y-1">
-                <li><strong class="text-white">作用力與反作用力（克服地心吸力）：</strong>根據牛頓第三定律，火箭向下噴出高溫氣體（作用力），同時獲得向上的巨大推力（反作用力）。當反作用力大於地心吸力時，火箭才能順利衝出重圍！</li>
-                <li><strong class="text-white">高空級段分離：</strong>在約 60–80 公里高空，第一級燃料耗盡後必須立刻拋棄死重，第二級才能繼續加速進入太空。</li>
-                <li><strong class="text-white">深空太陽能供電：</strong>進入太空巡航軌道後，飛船必須及時展開兩側大型太陽能板，為長達數月的漫長飛行提供持續電力。</li>
-                <li><strong class="text-white">大氣摩擦減速：</strong>高速進入火星大氣時會產生巨大摩擦力與高溫，防熱盾能保護火箭並進行首輪大幅減速。</li>
-                <li><strong class="text-white">「開傘窗口」極為嚴苛：</strong>開傘高度太高（速度超音速且動壓巨大）會直接撕裂降落傘；太低則沒有足夠距離減速。必須在黃金窗口正確觸發！</li>
+                <li><strong class="text-white">克服地心吸力：</strong>火箭向下噴出高溫氣體（作用力），同時獲得向上的反作用力。當反作用力大於地心吸力時，火箭才能順利衝破重力，進入太空！</li>
+                <li><strong class="text-white">高空級段分離：</strong>在約 60–80 公里高空，每級燃料耗盡後必須拋棄，飛船才能繼續加速進入太空。</li>
+                <li><strong class="text-white">太陽能供電：</strong>進入太空巡航軌道後，飛船必須展開太陽能板，為長達數月的漫長飛行提供持續電力。</li>
+                <li><strong class="text-white">進入火星前減速：</strong>接近火星時，飛船會透過反推引擎進行制動減速，才能進入火星大氣。</li>
+                <li><strong class="text-white">及時打開降落傘：</strong>開傘高度太高會導致降落傘承受過大負荷而破裂；太低則缺少足夠距離讓速度有效下降。必須在黃金窗口內準確觸發！</li>
             </ul>
         </div>
     </main>
@@ -167,9 +167,9 @@
         // 所有可選指令定義
         const ALL_ACTIONS = [
             { id: 'boost', label: '🚀 加大推進力！', style: 'bg-red-600 hover:bg-red-500 text-white' },
-            { id: 'separate', label: '✂️ 分離第一級推進器！', style: 'bg-amber-500 hover:bg-amber-400 text-slate-950' },
-            { id: 'solar', label: '☀️ 展開飛船太陽能板！', style: 'bg-sky-600 hover:bg-sky-500 text-white' },
-            { id: 'brake', label: '🛡️ 進行大氣減速！', style: 'bg-orange-600 hover:bg-orange-500 text-white' },
+            { id: 'separate', label: '✂️ 分離完用的燃料艙！', style: 'bg-amber-500 hover:bg-amber-400 text-slate-950' },
+            { id: 'solar', label: '☀️ 展開太陽能板！', style: 'bg-sky-600 hover:bg-sky-500 text-white' },
+            { id: 'brake', label: '🔥 進行大氣減速！', style: 'bg-orange-600 hover:bg-orange-500 text-white' },
             { id: 'parachute', label: '🪂 開啟降落傘！', style: 'bg-emerald-600 hover:bg-emerald-500 text-white' }
         ];
 
@@ -346,7 +346,7 @@
                     }
                     break;
 
-                case 4: // 火星降落
+                case 4: // 降落火星
                     if (!actionCompleted) {
                         // 高度從 85km 快速下降至 0km
                         altitude = Math.max(0, altitude - dt * 12);
@@ -419,22 +419,22 @@
             if (stage === 1) {
                 failureType = "boost_fail";
                 if (stage1Step === 0) {
-                    triggerFailure("選擇逾時！", "未能在限時內從 5 個指令中找到正確的「🚀 加大推進力！」！");
+                    triggerFailure("選擇逾時！", "沒有及時選擇「🚀 加大推進力！」，火箭未能成功升空！");
                 } else {
-                    triggerFailure("推進力不足！", "點擊頻率不夠快！向下噴氣作用力不足，產生的反作用力無法克服地心吸力，火箭墜回地面！");
+                    triggerFailure("推進力不足！", "向下噴氣作用力不足，產生的反作用力無法克服地心吸力，火箭墜回地面！（再點快一點試試看！）");
                 }
             } else if (stage === 2) {
                 failureType = "sep_fail";
-                triggerFailure("錯過分離時機！", "沒有及時選擇「✂️ 分離第一級推進器！」，第一級死重拖慢了火箭，無法進入太空！");
+                triggerFailure("錯過分離時機！", "沒有及時選擇「✂️ 分離完用的燃料艙！」，燃料艙太重了，拖慢了火箭，無法進入太空！");
             } else if (stage === 2.5) {
                 failureType = "power_fail";
-                triggerFailure("飛船失去電力！", "進入深空巡航後未能在限時內選擇「☀️ 展開飛船太陽能板！」，飛船電力耗盡陷入死寂！");
+                triggerFailure("飛船失去電力！", "沒有及時選擇「☀️ 展開太陽能板！」，飛船電力耗盡陷入死寂！");
             } else if (stage === 3) {
                 failureType = "flyby_fail"; 
-                triggerFailure("沒有在大氣層減速！", "未及時選擇「🛡️ 進行大氣減速！」，火箭像流星一樣直接飛過了火星，消失在宇宙深處！");
+                triggerFailure("沒有在大氣層減速！", "沒有及時選擇「🔥 進行大氣減速！」，火箭未能被火星捕捉進入軌道，高速飛掠後消失在宇宙深處！");
             } else if (stage === 4) {
                 failureType = "crash_fail";
-                triggerFailure("降落傘打開太遲！", "未及時選擇「🪂 開啟降落傘！」，火箭以極高速撞擊火星表面爆炸墜毀！");
+                triggerFailure("降落傘打開太遲！", "沒有及時選擇「🪂 開啟降落傘！」，飛船以極高速撞擊火星表面爆炸墜毀！");
             }
         }
 
@@ -849,7 +849,7 @@
                     // 第 1 階段 Step 1: 選對指令 -> 進入 Step 2 連擊噴氣模式！
                     stage1Step = 1;
                     stageNameEl.innerText = "階段 1：發射升空（2/2 連續噴氣）";
-                    instructionTextEl.innerText = "🔥 找到了！現在快速連續點擊下方「噴氣推進」按鈕，產生向下作用力以獲取向上的反作用力克服地心吸力！";
+                    instructionTextEl.innerText = "🔥連續點擊下方「噴氣推進」按鈕，產生反作用力，克服地心吸力！";
                     
                     document.getElementById('thrustZoneContainer').classList.remove('hidden');
                     
@@ -871,11 +871,11 @@
                     if (altitude > 45) {
                         failureType = "chute_high_fail";
                         parachuteTorn = true;
-                        triggerFailure("開傘高度太高！", "在超過 45km 的高空開傘，速度太快且動壓過大，降落傘被瞬間撕裂！");
+                        triggerFailure("開傘高度太高！", "在超過 45km 的高空開傘，速度仍太快，降落傘承受的拉力不足以支撐而失效！");
                         return;
                     } else if (altitude < 15) {
                         failureType = "chute_low_fail";
-                        triggerFailure("開傘高度太低！", "在低於 15km 才開傘，沒有足夠距離減速，火箭直接撞毀！");
+                        triggerFailure("開傘高度太低！", "在低於 15km 才開傘，沒有足夠距離及時間減速，飛船以高速撞毀！");
                         return;
                     } else {
                         parachuteOpened = true;
@@ -910,7 +910,7 @@
 
                 } else if (stage === 3) {
                     isBraking = true;
-                    instructionTextEl.innerText = "✅ 正確！飛船防熱盾正在大氣層中進行劇烈摩擦減速！";
+                    instructionTextEl.innerText = "✅ 正確！反推動引擎啟動後，飛船成功減速，進入火星大氣！";
                     setTimeout(enterStage4, 1200);
                 }
 
@@ -918,7 +918,7 @@
                 // 選錯了！按鈕變灰色，提示無效，倒數繼續！
                 btnEl.disabled = true;
                 btnEl.className = "py-3.5 px-3 rounded-xl font-bold text-sm md:text-base bg-slate-700 text-slate-500 opacity-40 cursor-not-allowed border border-slate-600 line-through";
-                instructionTextEl.innerText = "❌ 指令無效！這個操作在當前階段沒有反應，請儘快選擇正確指令！";
+                instructionTextEl.innerText = "❌ 指令無效！這個操作在當前階段沒有反應！";
             }
         }
 
@@ -941,10 +941,10 @@
                 if (tapBtn) {
                     tapBtn.disabled = true;
                     tapBtn.className = "col-span-full py-4 bg-emerald-600 text-white font-black text-lg rounded-xl opacity-90 cursor-default";
-                    tapBtn.innerText = "✅ 推進力達到 100%！衝出重圍！";
+                    tapBtn.innerText = "✅ 推進力達到 100%！衝破重力、進入太空！";
                 }
                 
-                instructionTextEl.innerText = "✅ 太棒了！向下作用力產生的反作用力成功克服地心吸力，火箭衝出重圍升空！";
+                instructionTextEl.innerText = "✅ 太棒了！向下作用力產生的反作用力，火箭成功克服地心吸力，順利升空！";
                 setTimeout(enterStage2, 1200);
             }
         }
@@ -966,8 +966,8 @@
             stage1Step = 0;
             actionCompleted = false;
             thrustProgress = 0;
-            stageNameEl.innerText = "階段 1：發射升空（1/2 辨識指令）";
-            instructionTextEl.innerText = "⚠️ 火箭準備發射！請先在下面 5 個指令中，找出能發射火箭的正確操作！";
+            stageNameEl.innerText = "階段 1：發射升空";
+            instructionTextEl.innerText = "⚠️ 火箭準備發射！請在以下 5 個指令中，找出能發射火箭的正確操作！";
             
             document.getElementById('thrustZoneContainer').classList.add('hidden');
             timerContainerEl.classList.remove('hidden');
@@ -981,7 +981,7 @@
             stage = 2;
             actionCompleted = false;
             stageNameEl.innerText = "階段 2：級段分離";
-            instructionTextEl.innerText = "⚠️ 警告：第一級推進器燃料已耗盡！請選擇正確指令拋棄重死重！";
+            instructionTextEl.innerText = "⚠️ 警告：推進器燃料已耗盡！請選擇正確指令拋棄燃料艙！";
 
             timerContainerEl.classList.remove('hidden');
             renderActionButtons('separate');
@@ -998,7 +998,7 @@
             spacecraftSolarDeployed = false;
 
             timerContainerEl.classList.remove('hidden');
-            stageNameEl.innerText = "地火轉移軌道：深空巡航";
+            stageNameEl.innerText = "深空巡航";
             instructionTextEl.innerText = "⚠️ 警告：飛船進入深空！請選擇正確指令獲取電力！";
             
             renderActionButtons('solar');
@@ -1032,8 +1032,8 @@
             rocketY = canvas.height * 0.2;
             rocketAngle = 0;
             altitude = 85; // 從 85km 開始實時下降
-            stageNameEl.innerText = "階段 4：火星降落（黃金開傘窗口）";
-            instructionTextEl.innerText = "⚠️ 觀察高度計！請等待高度降至【15 ~ 45 km 綠色安全窗口】再按「🪂 開啟降落傘！」";
+            stageNameEl.innerText = "階段 4：降落火星";
+            instructionTextEl.innerText = "⚠️ 觀察高度計！等待高度降至【黃金窗口】再按「🪂 開啟降落傘！」";
 
             document.getElementById('altZoneContainer').classList.remove('hidden');
             timerContainerEl.classList.remove('hidden');
@@ -1080,7 +1080,7 @@
             setTimeout(() => {
                 overlayTitleEl.innerText = "🎉 任務成功！成功著陸火星！";
                 overlayTitleEl.className = "text-3xl font-extrabold text-emerald-400 mb-2";
-                overlayDescEl.innerText = "恭喜你！你成功帶領國家航天團隊克服重重困難著陸火星！「火星探測車」已經順利駛出艙門，並成功展開太陽能電池板，正式開啟火星科學探索任務！";
+                overlayDescEl.innerText = "恭喜你！你成功帶領國家航天團隊，克服重重困難，使「火星探測車」順利著陸火星！「火星探測車」駛出艙門，展開了太陽能電池板，正式開啟火星探索任務！";
                 startBtnEl.innerText = "再玩一次";
                 overlayEl.classList.remove('hidden');
             }, 600);
