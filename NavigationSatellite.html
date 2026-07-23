@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>衛星定位原理互動遊戲 | Satellite Trilateration Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .radar-grid {
+            background-size: 40px 40px;
+            background-image: 
+                linear-gradient(to right, rgba(16, 185, 129, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(16, 185, 129, 0.05) 1px, transparent 1px);
+        }
+
+        .pulse-glow {
+            animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+
+        /* Custom range slider styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            height: 8px;
+            border-radius: 4px;
+            background: #334155;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        }
+
+        @keyframes super-pulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.8), 0 0 15px rgba(34, 211, 238, 0.5);
+                filter: brightness(1);
+            }
+            50% {
+                transform: scale(1.07);
+                box-shadow: 0 0 35px 12px rgba(34, 211, 238, 0.95), 0 0 50px rgba(56, 189, 248, 0.8);
+                filter: brightness(1.3);
+            }
+        }
+
+        .super-pulse {
+            animation: super-pulse 1.1s infinite ease-in-out !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-full flex flex-col overflow-hidden">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between shrink-0 z-20">
+        <div class="flex items-center space-x-3">
+            <div class="p-2 bg-cyan-500/10 border border-cyan-500/30 rounded-xl text-cyan-400">
+                <i class="fa-solid fa-satellite-dish text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-lg sm:text-xl font-bold text-white leading-tight flex items-center gap-2">
+                    📱 幫小明找手機：GPS 衛星定位大冒險！
+                </h1>
+                <p class="text-xs sm:text-sm text-slate-400 hidden sm:block">小學六年級自然與科技：輕鬆搞懂 GPS 三邊測量定位原理</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+            <button id="btn-theory" class="px-3.5 py-2 text-xs sm:text-base font-semibold bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg border border-cyan-500/30 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-graduation-cap"></i>
+                <span>原理小教室</span>
+            </button>
+            <button id="btn-reset" class="px-3.5 py-2 text-xs sm:text-base font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-rotate-right"></i>
+                <span class="hidden sm:inline">重設</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Top Control Bar (Separated Top Panel) -->
+    <div class="bg-slate-900/90 border-b border-slate-800 px-4 py-3 flex flex-col md:flex-row items-center justify-between gap-3 shrink-0 z-10 backdrop-blur">
+        <!-- Level Selector -->
+        <div class="flex items-center gap-2 w-full md:w-auto">
+            <span id="level-badge" class="px-3 py-1.5 text-xs sm:text-sm font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 rounded-lg whitespace-nowrap">
+                第 1 關 / 共 3 關
+            </span>
+            <div class="grid grid-cols-3 gap-1.5 flex-1 md:w-80">
+                <button class="level-btn py-2 px-2 text-xs sm:text-sm text-center rounded-lg border border-cyan-500 bg-cyan-500/10 text-cyan-300 font-bold transition" data-level="1">
+                    1 顆衛星<br><span class="text-[11px] sm:text-xs opacity-80">(範圍很大)</span>
+                </button>
+                <button class="level-btn py-2 px-2 text-xs sm:text-sm text-center rounded-lg border border-slate-800 bg-slate-800/50 text-slate-400 hover:text-slate-200 transition" data-level="2">
+                    2 顆衛星<br><span class="text-[11px] sm:text-xs opacity-80">(二選一)</span>
+                </button>
+                <button class="level-btn py-2 px-2 text-xs sm:text-sm text-center rounded-lg border border-slate-800 bg-slate-800/50 text-slate-400 hover:text-slate-200 transition" data-level="3">
+                    3 顆衛星<br><span class="text-[11px] sm:text-xs opacity-80">(精準找到)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Task Instruction Box -->
+        <div id="instruction-box" class="flex-1 bg-slate-950/70 border border-indigo-500/30 px-4 py-2 rounded-xl text-left w-full md:w-auto flex flex-col justify-center">
+            <h3 class="text-sm sm:text-base font-bold text-indigo-300 flex items-center gap-2">
+                <i class="fa-solid fa-circle-info"></i>
+                <span id="step-title">任務 1：讓衛星告訴我們手機有多遠！</span>
+            </h3>
+            <p id="step-description" class="text-xs sm:text-sm text-slate-200 font-medium leading-normal">
+                點擊右側按鈕，聽聽衛星怎麼說，並繪製訊號廣播圓圈！
+            </p>
+        </div>
+
+        <!-- Primary Action Button -->
+        <button id="btn-action" class="w-full md:w-auto px-6 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold text-sm sm:text-base rounded-xl shadow-lg shadow-cyan-500/20 transition transform active:scale-[0.98] flex items-center justify-center gap-2 shrink-0 super-pulse">
+            <i class="fa-solid fa-tower-broadcast text-lg"></i>
+            <span id="action-btn-text">📡 聽衛星說話並畫出廣播範圍！</span>
+        </button>
+    </div>
+
+    <!-- Center Main Interactive Map Viewport -->
+    <main class="flex-1 relative bg-slate-950 radar-grid overflow-hidden flex flex-col min-h-0">
+        <!-- Canvas Map Overlay Status -->
+        <div class="absolute top-3 left-3 z-10 bg-slate-900/90 backdrop-blur border border-slate-800 px-4 py-2 rounded-xl text-xs sm:text-sm flex items-center text-slate-200 shadow-lg font-medium">
+            <div id="status-hint" class="text-cyan-400 font-bold text-xs sm:text-sm">
+                點擊按鈕，聽聽衛星怎麼說！
+            </div>
+        </div>
+
+        <!-- Primary Canvas -->
+        <div class="flex-1 w-full h-full relative cursor-crosshair">
+            <canvas id="map-canvas" class="w-full h-full block"></canvas>
+        </div>
+
+        <!-- Bottom Toast Notification -->
+        <div id="toast-message" class="absolute bottom-5 left-1/2 -translate-x-1/2 bg-slate-900/95 border border-cyan-500/50 text-cyan-100 px-6 py-3 rounded-2xl shadow-2xl backdrop-blur flex items-center gap-3 transition-all duration-300 transform translate-y-20 opacity-0 z-30 pointer-events-none text-sm sm:text-base font-bold max-w-lg text-center">
+            <i id="toast-icon" class="fa-solid fa-circle-check text-cyan-400 text-xl shrink-0"></i>
+            <span id="toast-text">提示訊息內容</span>
+        </div>
+    </main>
+
+    <!-- Bottom Satellite Status Cards Panel (Horizontal Separated Panel) -->
+    <footer class="bg-slate-900 border-t border-slate-800 p-2.5 shrink-0 z-10">
+        <div class="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <!-- Satellite A -->
+            <div id="card-sat-0" class="sat-card bg-slate-950 px-3.5 py-2 rounded-xl border border-rose-500/40 transition-all flex items-center justify-between min-h-[50px]">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <span class="w-4 h-4 rounded-full bg-rose-500 inline-block shadow-[0_0_8px_rgba(244,63,94,0.7)] shrink-0 border border-rose-300/30"></span>
+                    <div class="min-w-0">
+                        <div class="text-xs sm:text-sm font-bold text-slate-100 truncate">🛰️ 衛星 Alpha (小紅)</div>
+                        <div id="status-sat-0" class="text-xs text-slate-400 font-medium truncate">狀態: 準備接收廣播</div>
+                    </div>
+                </div>
+                <span id="dist-target-0" class="text-xs sm:text-sm font-mono px-2.5 py-1 bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-lg font-bold shrink-0 ml-2">
+                    距離：-- km
+                </span>
+            </div>
+
+            <!-- Satellite B -->
+            <div id="card-sat-1" class="sat-card bg-slate-950 px-3.5 py-2 rounded-xl border border-emerald-500/40 transition-all opacity-50 pointer-events-none flex items-center justify-between min-h-[50px]">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <span class="w-4 h-4 rounded-full bg-emerald-500 inline-block shadow-[0_0_8px_rgba(16,185,129,0.7)] shrink-0 border border-emerald-300/30"></span>
+                    <div class="min-w-0">
+                        <div class="text-xs sm:text-sm font-bold text-slate-100 truncate">🛰️ 衛星 Beta (小綠)</div>
+                        <div id="status-sat-1" class="text-xs text-slate-400 font-medium truncate">狀態: 準備接收廣播</div>
+                    </div>
+                </div>
+                <span id="dist-target-1" class="text-xs sm:text-sm font-mono px-2.5 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg font-bold shrink-0 ml-2">
+                    距離：-- km
+                </span>
+            </div>
+
+            <!-- Satellite C -->
+            <div id="card-sat-2" class="sat-card bg-slate-950 px-3.5 py-2 rounded-xl border border-amber-500/40 transition-all opacity-50 pointer-events-none flex items-center justify-between min-h-[50px]">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <span class="w-4 h-4 rounded-full bg-amber-500 inline-block shadow-[0_0_8px_rgba(245,158,11,0.7)] shrink-0 border border-amber-300/30"></span>
+                    <div class="min-w-0">
+                        <div class="text-xs sm:text-sm font-bold text-slate-100 truncate">🛰️ 衛星 Gamma (小黃)</div>
+                        <div id="status-sat-2" class="text-xs text-slate-400 font-medium truncate">狀態: 準備接收廣播</div>
+                    </div>
+                </div>
+                <span id="dist-target-2" class="text-xs sm:text-sm font-mono px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg font-bold shrink-0 ml-2">
+                    距離：-- km
+                </span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Theory Modal (原理說明) -->
+    <div id="theory-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 text-slate-200 shadow-2xl relative">
+            <button id="close-modal" class="absolute top-4 right-4 text-slate-400 hover:text-white p-2">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+
+            <div class="flex items-center gap-3 mb-4">
+                <div class="p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-xl text-cyan-400">
+                    <i class="fa-solid fa-satellite text-3xl"></i>
+                </div>
+                <div>
+                    <h2 class="text-xl sm:text-2xl font-bold text-white">智慧型手機 GPS 定位原理 (三邊測量)</h2>
+                    <p class="text-xs sm:text-sm text-slate-400">How Satellite Trilateration Works in Mobile Phones</p>
+                </div>
+            </div>
+
+            <div class="space-y-4 text-sm sm:text-base leading-relaxed text-slate-300">
+                <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                    <h3 class="font-bold text-cyan-400 mb-1 flex items-center gap-2 text-base sm:text-lg">
+                        <i class="fa-solid fa-wave-square"></i> 1. 距離是如何計算出來的？ (Time of Flight)
+                    </h3>
+                    <p>
+                        定位衛星內部配有極高精準度的原子鐘，會不斷向地球發射帶有「發射時間戳記」的電磁波訊號。手機接收到訊號後，比對目前時間，算出傳輸時間差 $\Delta t$。
+                        <br><span class="text-xs sm:text-sm font-mono text-cyan-300 bg-cyan-950/50 px-2.5 py-1 rounded inline-block mt-1.5 font-bold">距離 ($d$) = 光速 ($c$) × 時間差 ($\Delta t$)</span>
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                        <span class="text-xs sm:text-sm font-bold text-rose-400 block mb-1">1 顆衛星 (一維)</span>
+                        <p class="text-xs sm:text-sm text-slate-300">只知道與衛星距離 $d_1$，手機可能在以衛星為圓心的<strong class="text-slate-100">整個圓周上</strong>任何一點。</p>
+                    </div>
+                    <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                        <span class="text-xs sm:text-sm font-bold text-emerald-400 block mb-1">2 顆衛星 (二維)</span>
+                        <p class="text-xs sm:text-sm text-slate-300">兩個測量圓會相交於<strong class="text-slate-100">兩點</strong>，此時無法確定哪一點才是手機真實位置。</p>
+                    </div>
+                    <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                        <span class="text-xs sm:text-sm font-bold text-amber-400 block mb-1">3 顆衛星 (精確點)</span>
+                        <p class="text-xs sm:text-sm text-slate-300">三個測量圓會交於<strong class="text-slate-100">唯一一個共同交點</strong>，成功確定平面座標 (X, Y)！</p>
+                    </div>
+                </div>
+
+                <div class="bg-indigo-950/30 border border-indigo-500/20 p-4 rounded-xl text-xs sm:text-sm text-indigo-200">
+                    <h4 class="font-bold text-indigo-300 mb-1 flex items-center gap-1.5 text-sm sm:text-base">
+                        <i class="fa-solid fa-globe"></i> 延伸思考：為什麼實際 GPS 需要第 4 顆衛星？
+                    </h4>
+                    <p>
+                        在真實三維空間中，定位需要 3 顆衛星確定 3D 空間座標 $(X, Y, Z)$ 的球體交點。而**第 4 顆衛星**的作用則是修補手機石英鐘與衛星原子鐘之間的**時間誤差 (Time Drift)**，大幅提升定位精度！
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button id="modal-start-btn" class="px-6 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold text-sm sm:text-base rounded-xl transition">
+                    開始實作體驗
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State Management
+        const gameState = {
+            level: 1, // 1: 1 Sat, 2: 2 Sat, 3: 3 Sat
+            scale: 60, // 1 km = pixels
+            gridUnitKm: 1.0,
+            phase: 'DRAW_CIRCLES', // 'DRAW_CIRCLES' | 'PINPOINT_PHONE' | 'COMPLETED'
+            isAnimating: false,
+            animProgress: 0,
+            targetPhone: { x: 0, y: 0 },
+            selectedPoint: null,
+            satellites: [
+                { id: 0, name: 'Satellite A (小紅)', color: '#f43f5e', x: 0, y: 0, targetDist: 3.2, userRadius: 0 },
+                { id: 1, name: 'Satellite B (小綠)', color: '#10b981', x: 0, y: 0, targetDist: 3.8, userRadius: 0 },
+                { id: 2, name: 'Satellite C (小黃)', color: '#f59e0b', x: 0, y: 0, targetDist: 2.8, userRadius: 0 }
+            ]
+        };
+
+        // DOM Elements
+        const canvas = document.getElementById('map-canvas');
+        const ctx = canvas.getContext('2d');
+        const toast = document.getElementById('toast-message');
+        const toastText = document.getElementById('toast-text');
+        const toastIcon = document.getElementById('toast-icon');
+        const actionBtn = document.getElementById('btn-action');
+        const actionBtnText = document.getElementById('action-btn-text');
+
+        function initLevel(levelNum) {
+            gameState.level = levelNum;
+            gameState.phase = 'DRAW_CIRCLES';
+            gameState.isAnimating = false;
+            gameState.animProgress = 0;
+            gameState.selectedPoint = null;
+
+            if (canvas.width === 0 || canvas.height === 0) {
+                resizeCanvas();
+            }
+
+            document.getElementById('level-badge').textContent = `第 ${levelNum} 關 / 共 3 關`;
+            document.querySelectorAll('.level-btn').forEach(btn => {
+                const btnLvl = parseInt(btn.dataset.level);
+                if (btnLvl === levelNum) {
+                    btn.className = "level-btn py-2 px-1 text-xs text-center rounded-lg border border-cyan-500 bg-cyan-500/20 text-cyan-300 font-bold shadow-lg shadow-cyan-500/10";
+                } else {
+                    btn.className = "level-btn py-2 px-1 text-xs text-center rounded-lg border border-slate-800 bg-slate-800/50 text-slate-400 hover:text-slate-200";
+                }
+            });
+
+            const minDim = Math.min(canvas.width || 600, canvas.height || 600);
+            gameState.scale = Math.max(28, minDim / 14);
+
+            const widthKm = canvas.width / gameState.scale;
+            const heightKm = canvas.height / gameState.scale;
+            const centerX = widthKm / 2;
+            const centerY = heightKm / 2;
+
+            gameState.targetPhone = { x: centerX, y: centerY };
+
+            // Position satellites so Satellite A & B line of centers doesn't pass directly through the phone,
+            // producing two distinct, well-separated intersection candidate points in Level 2.
+            const angles = [Math.PI * 0.75, Math.PI * 1.25, Math.PI * 0.05];
+            const dists = [3.0, 3.2, 2.8];
+
+            for (let i = 0; i < 3; i++) {
+                const angle = angles[i];
+                const dist = dists[i];
+                gameState.satellites[i].targetDist = dist;
+                gameState.satellites[i].userRadius = 0;
+                gameState.satellites[i].x = gameState.targetPhone.x + Math.cos(angle) * dist;
+                gameState.satellites[i].y = gameState.targetPhone.y + Math.sin(angle) * dist;
+
+                const distTarget = document.getElementById(`dist-target-${i}`);
+                const satStatus = document.getElementById(`status-sat-${i}`);
+
+                if (distTarget) distTarget.textContent = `距離：${dist.toFixed(1)} km`;
+                if (satStatus) satStatus.textContent = "狀態: 待發射廣播";
+
+                const card = document.getElementById(`card-sat-${i}`);
+                if (card) {
+                    if (i < levelNum) {
+                        card.classList.remove('opacity-50', 'pointer-events-none');
+                    } else {
+                        card.classList.add('opacity-50', 'pointer-events-none');
+                    }
+                }
+            }
+
+            updateInstructionText();
+            drawMap();
+        }
+
+        function updateInstructionText() {
+            const stepTitle = document.getElementById('step-title');
+            const stepDesc = document.getElementById('step-description');
+            const statusHint = document.getElementById('status-hint');
+
+            if (gameState.phase === 'DRAW_CIRCLES') {
+                stepTitle.textContent = `步驟 1：聽聽 ${gameState.level} 顆衛星的廣播發言`;
+                stepDesc.textContent = `請點擊右側按鈕，衛星會開口告訴你：「手機離我有多遠！」並畫出廣播範圍圓圈。`;
+                actionBtnText.textContent = "📡 聽衛星說話並畫出廣播範圍！";
+                actionBtn.classList.add('super-pulse');
+                statusHint.textContent = "點擊按鈕，聽聽衛星怎麼說！";
+            } else if (gameState.phase === 'PINPOINT_PHONE') {
+                actionBtn.classList.remove('super-pulse');
+                stepTitle.textContent = "步驟 2：猜猜看小明的手機在哪裡？";
+
+                if (gameState.level === 1) {
+                    stepDesc.textContent = "【試試看】請在地圖上的紅色圓圈上記錄你猜測的手機位置！";
+                    statusHint.textContent = "在地圖的紅色圓圈上點擊任一點猜猜看！";
+                } else if (gameState.level === 2) {
+                    stepDesc.textContent = "【試試看】現在有兩個圓圈相交了！請點擊其中一個交點。";
+                    statusHint.textContent = "請點擊兩個圓圈重疊交會的 2 個點之一！";
+                } else {
+                    stepDesc.textContent = "【試試看】三個圓圈同時相交了！快點擊那個唯一的交叉點！";
+                    statusHint.textContent = "請點擊 3 個圓圈共同重疊的黃金交叉點！";
+                }
+                actionBtnText.textContent = "請在地圖上記錄並驗證你的答案...";
+            } else if (gameState.phase === 'COMPLETED') {
+                actionBtn.classList.add('super-pulse');
+                stepTitle.textContent = "🎉 太棒了！學習結論總結";
+
+                if (gameState.level === 1) {
+                    stepDesc.textContent = "【小結】1 顆衛星不夠用！因為圓圈上有無數個位置都符合距離要求。";
+                } else if (gameState.level === 2) {
+                    stepDesc.textContent = "【小結】2 顆衛星能把目標縮小到 2 個點，但依然無法確定是哪一個。";
+                } else {
+                    stepDesc.textContent = "【小結】3 顆衛星成功找到手機！3 個圓圈只會有 1 個共同交點！";
+                }
+
+                actionBtnText.textContent = gameState.level < 3 ? "進入下一個關卡 (挑戰更多衛星)" : "再次體驗尋寶大冒險";
+                statusHint.textContent = "定位完成！找到小明的手機了！";
+            }
+        }
+
+        function startSignalAnimation() {
+            if (gameState.isAnimating || gameState.phase !== 'DRAW_CIRCLES') return;
+            gameState.isAnimating = true;
+            gameState.animProgress = 0;
+
+            const startTime = performance.now();
+            const duration = 1200;
+
+            for (let i = 0; i < gameState.level; i++) {
+                const satStatus = document.getElementById(`status-sat-${i}`);
+                if (satStatus) satStatus.textContent = `發言: 「手機離我 ${gameState.satellites[i].targetDist.toFixed(1)} km！」`;
+            }
+
+            function step(timestamp) {
+                const elapsed = timestamp - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                gameState.animProgress = 1 - Math.pow(1 - progress, 3);
+
+                drawMap();
+
+                if (progress < 1) {
+                    requestAnimationFrame(step);
+                } else {
+                    gameState.isAnimating = false;
+                    gameState.phase = 'PINPOINT_PHONE';
+                    updateInstructionText();
+                    drawMap();
+                }
+            }
+            requestAnimationFrame(step);
+        }
+
+        function calculateCircleIntersections(sats) {
+            if (sats.length < 2) return [];
+
+            const s1 = sats[0];
+            const s2 = sats[1];
+
+            const dx = s2.x - s1.x;
+            const dy = s2.y - s1.y;
+            const d = Math.hypot(dx, dy);
+
+            const r1 = s1.targetDist;
+            const r2 = s2.targetDist;
+
+            if (d > r1 + r2 || d < Math.abs(r1 - r2) || d === 0) {
+                return [];
+            }
+
+            const a = (r1 * r1 - r2 * r2 + d * d) / (2 * d);
+            const h = Math.sqrt(Math.max(0, r1 * r1 - a * a));
+
+            const x2 = s1.x + (dx * a) / d;
+            const y2 = s1.y + (dy * a) / d;
+
+            const pt1 = { x: x2 + (h * dy) / d, y: y2 - (h * dx) / d };
+            const pt2 = { x: x2 - (h * dy) / d, y: y2 + (h * dx) / d };
+
+            return [pt1, pt2];
+        }
+
+        function drawMap() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const gridSpacing = gameState.scale;
+            ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
+            ctx.lineWidth = 1;
+
+            for (let x = 0; x < canvas.width; x += gridSpacing) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += gridSpacing) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            const activeSats = gameState.satellites.slice(0, gameState.level);
+
+            activeSats.forEach((sat) => {
+                const pxX = sat.x * gameState.scale;
+                const pxY = sat.y * gameState.scale;
+
+                const targetRadiusPx = sat.targetDist * gameState.scale;
+
+                const currentRadiusKm = gameState.phase === 'DRAW_CIRCLES' 
+                    ? sat.targetDist * gameState.animProgress 
+                    : sat.targetDist;
+                sat.userRadius = currentRadiusKm;
+
+                const userRadiusPx = currentRadiusKm * gameState.scale;
+
+                // Faint guide circle
+                ctx.beginPath();
+                ctx.arc(pxX, pxY, targetRadiusPx, 0, Math.PI * 2);
+                ctx.strokeStyle = sat.color + '40';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                if (userRadiusPx > 0) {
+                    ctx.beginPath();
+                    ctx.arc(pxX, pxY, userRadiusPx, 0, Math.PI * 2);
+                    ctx.fillStyle = sat.color + '20';
+                    ctx.fill();
+
+                    ctx.lineWidth = 2.5;
+                    ctx.strokeStyle = sat.color;
+                    ctx.setLineDash([6, 4]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    ctx.beginPath();
+                    ctx.moveTo(pxX, pxY);
+                    ctx.lineTo(pxX + userRadiusPx, pxY);
+                    ctx.strokeStyle = sat.color + 'dd';
+                    ctx.stroke();
+
+                    // Distance Pill Badge on radius line
+                    if (userRadiusPx > 25) {
+                        const distStr = `${currentRadiusKm.toFixed(1)} km`;
+                        ctx.font = 'bold 13px sans-serif';
+                        const tw = ctx.measureText(distStr).width;
+                        const tx = pxX + userRadiusPx / 2;
+                        const ty = pxY;
+
+                        ctx.fillStyle = '#0f172a';
+                        ctx.strokeStyle = sat.color;
+                        ctx.lineWidth = 1.5;
+                        ctx.beginPath();
+                        if (ctx.roundRect) {
+                            ctx.roundRect(tx - tw / 2 - 8, ty - 12, tw + 16, 24, 8);
+                        } else {
+                            ctx.rect(tx - tw / 2 - 8, ty - 12, tw + 16, 24);
+                        }
+                        ctx.fill();
+                        ctx.stroke();
+
+                        ctx.fillStyle = '#ffffff';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(distStr, tx, ty);
+                    }
+                }
+            });
+
+            // Level 1 Visual Highlight
+            if (gameState.level === 1 && gameState.phase === 'PINPOINT_PHONE') {
+                const satA = activeSats[0];
+                const pxX = satA.x * gameState.scale;
+                const pxY = satA.y * gameState.scale;
+                const radiusPx = satA.targetDist * gameState.scale;
+
+                ctx.beginPath();
+                ctx.arc(pxX, pxY, radiusPx, 0, Math.PI * 2);
+                ctx.strokeStyle = '#f43f5e';
+                ctx.lineWidth = 3.5;
+                ctx.stroke();
+
+                ctx.fillStyle = '#fda4af';
+                ctx.font = 'bold 14px sans-serif';
+                ctx.fillText("❓ 手機可能在圓圈上的『任何一個位置』", pxX - 110, Math.max(24, pxY - radiusPx - 12));
+            }
+
+            // Draw candidate intersection points for Level 2 and 3
+            if (gameState.phase === 'PINPOINT_PHONE') {
+                if (gameState.level === 2) {
+                    const intersections = calculateCircleIntersections(activeSats);
+                    intersections.forEach((pt, i) => {
+                        const px = pt.x * gameState.scale;
+                        const py = pt.y * gameState.scale;
+                        ctx.beginPath();
+                        ctx.arc(px, py, 14, 0, Math.PI * 2);
+                        ctx.fillStyle = 'rgba(250, 204, 21, 0.4)';
+                        ctx.fill();
+                        ctx.strokeStyle = '#facc15';
+                        ctx.lineWidth = 2.5;
+                        ctx.stroke();
+
+                        ctx.fillStyle = '#fef08a';
+                        ctx.font = 'bold 13px sans-serif';
+                        ctx.fillText(`候選點 ${i + 1}`, px + 18, py + 5);
+                    });
+                } else if (gameState.level === 3) {
+                    const phoneX = gameState.targetPhone.x * gameState.scale;
+                    const phoneY = gameState.targetPhone.y * gameState.scale;
+                    ctx.beginPath();
+                    ctx.arc(phoneX, phoneY, 16, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
+                    ctx.fill();
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.font = 'bold 14px sans-serif';
+                    ctx.fillText("🎯 黃金交叉點！", phoneX + 20, phoneY + 5);
+                }
+            }
+
+            // Draw selected user marker
+            if (gameState.selectedPoint) {
+                const ptX = gameState.selectedPoint.x * gameState.scale;
+                const ptY = gameState.selectedPoint.y * gameState.scale;
+
+                ctx.beginPath();
+                ctx.arc(ptX, ptY, 18, 0, Math.PI * 2);
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(ptX - 24, ptY); ctx.lineTo(ptX + 24, ptY);
+                ctx.moveTo(ptX, ptY - 24); ctx.lineTo(ptX, ptY + 24);
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            // Reveal phone when completed
+            if (gameState.phase === 'COMPLETED') {
+                const phoneX = gameState.targetPhone.x * gameState.scale;
+                const phoneY = gameState.targetPhone.y * gameState.scale;
+
+                ctx.beginPath();
+                ctx.arc(phoneX, phoneY, 24, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(phoneX, phoneY, 9, 0, Math.PI * 2);
+                ctx.fillStyle = '#38bdf8';
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 15px sans-serif';
+                ctx.fillText("📱 小明遺失的手機！", phoneX + 20, phoneY + 5);
+            }
+
+            // Top Layer: Draw Satellite Icons and Speech Bubbles LAST so they sit cleanly on top
+            activeSats.forEach((sat, idx) => {
+                const pxX = sat.x * gameState.scale;
+                const pxY = sat.y * gameState.scale;
+
+                ctx.beginPath();
+                ctx.arc(pxX, pxY, 20, 0, Math.PI * 2);
+                ctx.fillStyle = sat.color + '25';
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(pxX, pxY, 14, 0, Math.PI * 2);
+                ctx.fillStyle = '#0f172a';
+                ctx.fill();
+                ctx.strokeStyle = sat.color;
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(pxX, pxY, 5, 0, Math.PI * 2);
+                ctx.fillStyle = sat.color;
+                ctx.fill();
+
+                const satSpeechTexts = [
+                    `🛰️ Alpha 衛星：「手機距離我 ${sat.targetDist.toFixed(1)} km 喔！」`,
+                    `🛰️ Beta 衛星：「手機距離我 ${sat.targetDist.toFixed(1)} km 喔！」`,
+                    `🛰️ Gamma 衛星：「手機距離我 ${sat.targetDist.toFixed(1)} km 喔！」`
+                ];
+
+                if (gameState.phase !== 'DRAW_CIRCLES' || gameState.animProgress > 0) {
+                    drawSpeechBubble(ctx, pxX, pxY, satSpeechTexts[idx], sat.color, idx);
+                }
+            });
+        }
+
+        function drawSpeechBubble(ctx, pxX, pxY, text, color, satIdx) {
+            ctx.save();
+            ctx.font = 'bold 13px "Noto Sans TC", sans-serif';
+            const textWidth = ctx.measureText(text).width;
+            const paddingX = 14;
+            const bubbleW = textWidth + paddingX * 2;
+            const bubbleH = 34;
+
+            // Calculate directional vector pointing outward from canvas center to satellite
+            const canvasCenterX = canvas.width / 2;
+            const canvasCenterY = canvas.height / 2;
+
+            let dirX = pxX - canvasCenterX;
+            let dirY = pxY - canvasCenterY;
+            let len = Math.hypot(dirX, dirY) || 1;
+            let normX = dirX / len;
+            let normY = dirY / len;
+
+            // 取得當前衛星廣播圓圈的像素半徑
+            const sat = gameState.satellites[satIdx];
+            const satRadiusPx = sat ? sat.targetDist * gameState.scale : 180;
+
+            // 將對話框推至廣播圓圈之外 (圓周半徑 + 55 像素)
+            const pushDistance = Math.max(satRadiusPx + 55, 200);
+            let bubbleCenterX = pxX + normX * pushDistance;
+            let bubbleCenterY = pxY + normY * pushDistance;
+
+            // 確保左右方向有足夠的推力，完全離開圓圈範圍
+            if (pxX < canvasCenterX) {
+                bubbleCenterX = Math.min(bubbleCenterX, pxX - (satRadiusPx + 30));
+            } else {
+                bubbleCenterX = Math.max(bubbleCenterX, pxX + (satRadiusPx + 30));
+            }
+
+            let bx = bubbleCenterX - bubbleW / 2;
+            let by = bubbleCenterY - bubbleH / 2;
+
+            // Keep bubble fully inside canvas bounds with margin
+            const pad = 12;
+            bx = Math.max(pad, Math.min(canvas.width - bubbleW - pad, bx));
+            by = Math.max(pad, Math.min(canvas.height - bubbleH - pad, by));
+
+            const finalCenterX = bx + bubbleW / 2;
+            const finalCenterY = by + bubbleH / 2;
+
+            // Draw indicator line from satellite icon to speech bubble
+            ctx.beginPath();
+            ctx.moveTo(pxX, pxY);
+            ctx.lineTo(finalCenterX, finalCenterY);
+            ctx.strokeStyle = color + 'a0';
+            ctx.lineWidth = 1.8;
+            ctx.setLineDash([5, 4]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Speech bubble container with shadow
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+            ctx.shadowBlur = 12;
+            ctx.shadowOffsetY = 4;
+
+            ctx.fillStyle = '#0f172a';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+
+            ctx.beginPath();
+            if (ctx.roundRect) {
+                ctx.roundRect(bx, by, bubbleW, bubbleH, 10);
+            } else {
+                ctx.rect(bx, by, bubbleW, bubbleH);
+            }
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetY = 0;
+
+            // Pointer arrow triangle attached to bubble pointing at satellite
+            const toSatX = pxX - finalCenterX;
+            const toSatY = pxY - finalCenterY;
+            const toSatLen = Math.hypot(toSatX, toSatY) || 1;
+            const uX = toSatX / toSatLen;
+            const uY = toSatY / toSatLen;
+
+            const attachX = finalCenterX + uX * (bubbleW / 2);
+            const attachY = finalCenterY + uY * (bubbleH / 2);
+            const pX = -uY;
+            const pY = uX;
+
+            ctx.beginPath();
+            ctx.moveTo(attachX + pX * 6, attachY + pY * 6);
+            ctx.lineTo(attachX + uX * 12, attachY + uY * 12);
+            ctx.lineTo(attachX - pX * 6, attachY - pY * 6);
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            // Render speech text inside bubble
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, finalCenterX, finalCenterY);
+
+            ctx.restore();
+        }
+
+        function showToast(message, isSuccess = true) {
+            toastText.textContent = message;
+            toastIcon.className = isSuccess ? "fa-solid fa-circle-check text-emerald-400 text-lg" : "fa-solid fa-circle-exclamation text-rose-400 text-lg";
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            
+            // 清除之前的定時器，防止快速點擊時提示過快消失
+            if (window.toastTimeout) clearTimeout(window.toastTimeout);
+            
+            // 將顯示時間延長至 7.5 秒，讓學生有充足時間閱讀教學文字
+            window.toastTimeout = setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 7500);
+        }
+
+        canvas.addEventListener('click', (e) => {
+            if (gameState.phase !== 'PINPOINT_PHONE') return;
+
+            const rect = canvas.getBoundingClientRect();
+            const clickX = (e.clientX - rect.left) / gameState.scale;
+            const clickY = (e.clientY - rect.top) / gameState.scale;
+
+            gameState.selectedPoint = { x: clickX, y: clickY };
+
+            const distToRealTarget = Math.hypot(clickX - gameState.targetPhone.x, clickY - gameState.targetPhone.y);
+
+            if (gameState.level === 1) {
+                const satA = gameState.satellites[0];
+                const distToSatA = Math.hypot(clickX - satA.x, clickY - satA.y);
+                if (Math.abs(distToSatA - satA.targetDist) < 0.6) {
+                    gameState.phase = 'COMPLETED';
+                    showToast("你選擇了圓上的點！但發現了嗎？圓周上每個點都距離 3.2km，單靠 1 顆衛星無法知道確切位置！", true);
+                } else {
+                    showToast("請點擊紅色圓周軌跡上的任一點試試！", false);
+                }
+            } else if (gameState.level === 2) {
+                const intersections = calculateCircleIntersections(gameState.satellites.slice(0, 2));
+                const nearAnyIntersection = intersections.some(pt => Math.hypot(clickX - pt.x, clickY - pt.y) < 0.8);
+
+                if (nearAnyIntersection) {
+                    gameState.phase = 'COMPLETED';
+                    if (distToRealTarget < 0.6) {
+                        showToast("猜對了！但請注意：2 顆衛星共有 2 個交點，你有 50% 的機率會猜錯，仍需要第 3 顆衛星！", true);
+                    } else {
+                        showToast("你選了另一個交點！這證明了：2 顆衛星雖然能縮小到 2 個點，但依然無法確定哪一個才是真身！", true);
+                    }
+                } else {
+                    showToast("請點擊兩圓相交的黃色亮點（候選點 1 或 候選點 2）！", false);
+                }
+            } else if (gameState.level === 3) {
+                if (distToRealTarget < 0.8) {
+                    gameState.phase = 'COMPLETED';
+                    showToast("🎯 太棒了！3 顆衛星的圓完美交於【唯一點】，成功達成 100% 精確定位！", true);
+                } else {
+                    showToast("還不夠精準！請點擊 3 個圓形完美重疊的黃金交叉點！", false);
+                }
+            }
+
+            updateInstructionText();
+            drawMap();
+        });
+
+        actionBtn.addEventListener('click', () => {
+            if (gameState.phase === 'DRAW_CIRCLES') {
+                startSignalAnimation();
+            } else if (gameState.phase === 'COMPLETED') {
+                if (gameState.level < 3) {
+                    initLevel(gameState.level + 1);
+                } else {
+                    initLevel(1);
+                }
+            }
+        });
+
+        document.querySelectorAll('.level-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const lvl = parseInt(btn.dataset.level);
+                initLevel(lvl);
+            });
+        });
+
+        const theoryModal = document.getElementById('theory-modal');
+        const btnTheory = document.getElementById('btn-theory');
+        const closeModal = document.getElementById('close-modal');
+        const modalStartBtn = document.getElementById('modal-start-btn');
+
+        function toggleModal(show) {
+            if (show) {
+                theoryModal.classList.remove('hidden');
+                setTimeout(() => theoryModal.classList.remove('opacity-0'), 10);
+            } else {
+                theoryModal.classList.add('opacity-0');
+                setTimeout(() => theoryModal.classList.add('hidden'), 300);
+            }
+        }
+
+        btnTheory.addEventListener('click', () => toggleModal(true));
+        closeModal.addEventListener('click', () => toggleModal(false));
+        modalStartBtn.addEventListener('click', () => toggleModal(false));
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            initLevel(gameState.level);
+            showToast("已重置當前關卡設定。", true);
+        });
+
+        function resizeCanvas() {
+            const parent = canvas.parentElement;
+            if (!parent) return;
+
+            const w = parent.clientWidth || window.innerWidth;
+            const h = parent.clientHeight || window.innerHeight;
+
+            canvas.width = w;
+            canvas.height = h;
+
+            if (gameState.targetPhone) {
+                const minDim = Math.min(w, h);
+                const newScale = Math.max(28, minDim / 14);
+
+                const newCenterX = (w / newScale) / 2;
+                const newCenterY = (h / newScale) / 2;
+
+                const dx = newCenterX - gameState.targetPhone.x;
+                const dy = newCenterY - gameState.targetPhone.y;
+
+                gameState.scale = newScale;
+                gameState.targetPhone.x = newCenterX;
+                gameState.targetPhone.y = newCenterY;
+
+                gameState.satellites.forEach(sat => {
+                    sat.x += dx;
+                    sat.y += dy;
+                });
+            }
+
+            drawMap();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        window.onload = function () {
+            resizeCanvas();
+            initLevel(1);
+        };
+    </script>
+</body>
+</html>
