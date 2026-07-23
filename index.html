@@ -594,6 +594,44 @@
             ctx.translate(rocketX, rocketY);
             ctx.rotate(rocketAngle);
 
+            // 繪製飛船主體太陽能板（展開動畫）
+            if (spacecraftSolarProgress > 0) {
+                const panelW = 22 * spacecraftSolarProgress;
+                const panelH = 7;
+                
+                ctx.save();
+                ctx.fillStyle = '#0284c7';
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 1;
+
+                // 左側太陽能翼板
+                ctx.beginPath();
+                ctx.rect(-9 - panelW, -2, panelW, panelH);
+                ctx.fill();
+                ctx.stroke();
+
+                // 右側太陽能翼板
+                ctx.beginPath();
+                ctx.rect(9, -2, panelW, panelH);
+                ctx.fill();
+                ctx.stroke();
+
+                // 太陽能板表面金屬網格 (當展開進度過半時顯示)
+                if (spacecraftSolarProgress > 0.3) {
+                    ctx.strokeStyle = '#bae6fd';
+                    ctx.lineWidth = 0.7;
+                    ctx.beginPath();
+                    // 左翼網格
+                    ctx.moveTo(-9 - panelW / 2, -2); ctx.lineTo(-9 - panelW / 2, -2 + panelH);
+                    ctx.moveTo(-9, -2 + panelH / 2); ctx.lineTo(-9 - panelW, -2 + panelH / 2);
+                    // 右翼網格
+                    ctx.moveTo(9 + panelW / 2, -2); ctx.lineTo(9 + panelW / 2, -2 + panelH);
+                    ctx.moveTo(9, -2 + panelH / 2); ctx.lineTo(9 + panelW, -2 + panelH / 2);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
             // 繪製正常降落傘
             if (parachuteOpened) {
                 ctx.fillStyle = '#f97316';
