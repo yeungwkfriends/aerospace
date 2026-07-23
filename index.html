@@ -167,7 +167,7 @@
         // 所有可選指令定義
         const ALL_ACTIONS = [
             { id: 'boost', label: '🚀 加大推進力！', style: 'bg-red-600 hover:bg-red-500 text-white' },
-            { id: 'separate', label: '✂️ 分離完用的燃料艙！', style: 'bg-amber-500 hover:bg-amber-400 text-slate-950' },
+            { id: 'separate', label: '✂️ 分離用完的燃料艙！', style: 'bg-amber-500 hover:bg-amber-400 text-slate-950' },
             { id: 'solar', label: '☀️ 展開太陽能板！', style: 'bg-sky-600 hover:bg-sky-500 text-white' },
             { id: 'brake', label: '🔥 進行大氣減速！', style: 'bg-orange-600 hover:bg-orange-500 text-white' },
             { id: 'parachute', label: '🪂 開啟降落傘！', style: 'bg-emerald-600 hover:bg-emerald-500 text-white' }
@@ -425,7 +425,7 @@
                 }
             } else if (stage === 2) {
                 failureType = "sep_fail";
-                triggerFailure("錯過分離時機！", "沒有及時選擇「✂️ 分離完用的燃料艙！」，燃料艙太重了，拖慢了火箭，無法進入太空！");
+                triggerFailure("錯過分離時機！", "沒有及時選擇「✂️ 分離用完的燃料艙！」，燃料艙太重了，拖慢了火箭，無法進入太空！");
             } else if (stage === 2.5) {
                 failureType = "power_fail";
                 triggerFailure("飛船失去電力！", "沒有及時選擇「☀️ 展開太陽能板！」，飛船電力耗盡陷入死寂！");
