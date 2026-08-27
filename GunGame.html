@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>港九殺敵傳：霓虹英雄 HK Neon Defense</title>
+    <!-- Tailwind CSS for modern responsive overlay UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #080810;
+            font-family: 'Noto Sans TC', sans-serif;
+            color: #ffffff;
+        }
+
+        /* Neon Glow Effects */
+        .neon-text-red { text-shadow: 0 0 8px #ff0055, 0 0 16px #ff0055; }
+        .neon-text-cyan { text-shadow: 0 0 8px #00f0ff, 0 0 16px #00f0ff; }
+        .neon-text-yellow { text-shadow: 0 0 8px #ffcc00, 0 0 16px #ffcc00; }
+        .neon-border { box-shadow: 0 0 15px rgba(0, 240, 255, 0.4), inset 0 0 15px rgba(0, 240, 255, 0.2); }
+        .neon-border-red { box-shadow: 0 0 15px rgba(255, 0, 85, 0.5), inset 0 0 15px rgba(255, 0, 85, 0.2); }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            background-color: #0d0e15;
+            cursor: crosshair;
+        }
+
+        /* Virtual Controller Overlay for Touch Devices */
+        .touch-controller {
+            display: none;
+        }
+        @media (pointer: coarse) {
+            .touch-controller {
+                display: flex;
+            }
+        }
+        
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+    </style>
+</head>
+<body class="relative flex items-center justify-center min-h-screen overflow-hidden">
+
+    <!-- Main Gameplay Canvas -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Top Overlay HUD -->
+    <div id="hudOverlay" class="absolute top-0 left-0 w-full p-4 pointer-events-none flex flex-col justify-between hidden">
+        <div class="flex flex-wrap items-center justify-between gap-2 max-w-7xl mx-auto w-full">
+            <!-- Health & Ultimate Bar -->
+            <div class="glass-panel p-3 rounded-2xl flex flex-col gap-2 min-w-[240px] sm:min-w-[320px]">
+                <div class="flex justify-between items-center text-xs font-bold text-gray-300">
+                    <span class="flex items-center gap-1.5"><i class="fa-solid font-black fa-heart text-red-500"></i> 生命值 HP</span>
+                    <span id="hpText" class="text-red-400 font-mono">100 / 100</span>
+                </div>
+                <div class="w-full bg-gray-800/80 rounded-full h-3.5 overflow-hidden p-0.5 border border-red-500/30">
+                    <div id="hpBar" class="bg-gradient-to-r from-red-600 to-pink-500 h-full rounded-full transition-all duration-200" style="width: 100%;"></div>
+                </div>
+
+                <div class="flex justify-between items-center text-xs font-bold text-gray-300 mt-1">
+                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-bolt text-cyan-400"></i> 獅子山怒火 (必殺)</span>
+                    <span id="ultText" class="text-cyan-400 font-mono">0%</span>
+                </div>
+                <div class="w-full bg-gray-800/80 rounded-full h-2.5 overflow-hidden p-0.5 border border-cyan-500/30">
+                    <div id="ultBar" class="bg-gradient-to-r from-cyan-500 to-blue-400 h-full rounded-full transition-all duration-150" style="width: 0%;"></div>
+                </div>
+            </div>
+
+            <!-- District & Wave Info -->
+            <div class="glass-panel px-6 py-2.5 rounded-2xl text-center">
+                <div id="districtName" class="text-xs tracking-widest text-cyan-400 font-bold uppercase">旺角霓虹巷</div>
+                <div id="waveInfo" class="text-xl sm:text-2xl font-black text-white neon-text-yellow">第 1 波次</div>
+            </div>
+
+            <!-- Stats & Coins -->
+            <div class="glass-panel p-3 rounded-2xl flex items-center gap-4 text-right">
+                <div>
+                    <div class="text-xs text-gray-400 font-semibold">金幣 / 獎賞</div>
+                    <div class="text-lg font-black text-yellow-400 font-mono flex items-center gap-1 justify-end">
+                        <i class="fa-solid fa-coins"></i> <span id="coinCount">0</span>
+                    </div>
+                </div>
+                <div class="h-8 w-px bg-white/10"></div>
+                <div>
+                    <div class="text-xs text-gray-400 font-semibold">擊殺分數</div>
+                    <div id="scoreText" class="text-lg font-black text-emerald-400 font-mono">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Weapon & Skill Quick Switch HUD Bar -->
+        <div class="flex justify-center items-center gap-3 mt-3 pointer-events-auto">
+            <div id="weaponList" class="flex gap-2 bg-slate-900/80 backdrop-blur-md p-1.5 rounded-2xl border border-white/10">
+                <!-- Weapon slots injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Virtual Controls Layer -->
+    <div class="touch-controller fixed inset-0 pointer-events-none z-20 flex justify-between items-end p-6 select-none">
+        <!-- Left Movement Joystick Zone -->
+        <div id="moveJoyZone" class="w-36 h-36 rounded-full glass-panel relative pointer-events-auto border border-cyan-500/30 flex items-center justify-center opacity-80 active:opacity-100">
+            <div id="moveJoyKnob" class="w-14 h-14 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 shadow-lg absolute transition-transform duration-75"></div>
+        </div>
+
+        <!-- Right Action Buttons Zone -->
+        <div class="flex flex-col gap-3 pointer-events-auto items-end">
+            <button id="btnUltimate" class="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 text-white font-black text-sm shadow-lg flex flex-col items-center justify-center border-2 border-cyan-300 active:scale-95 transition-transform opacity-50">
+                <i class="fa-solid fa-dragon text-xl"></i>
+                <span class="text-[10px]">必殺</span>
+            </button>
+            <div class="flex gap-3">
+                <button id="btnTaxiStrike" class="w-14 h-14 rounded-full bg-gradient-to-br from-yellow-500 to-red-600 text-white font-bold text-xs shadow-lg flex flex-col items-center justify-center border border-yellow-300 active:scale-95">
+                    <i class="fa-solid fa-taxi text-lg"></i>
+                    <span class="text-[9px]">紅的</span>
+                </button>
+                <button id="btnAttack" class="w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-pink-600 text-white font-black text-lg shadow-xl flex items-center justify-center border-2 border-pink-300 active:scale-95">
+                    <i class="fa-solid fa-crosshairs text-2xl"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Game Menu Modal -->
+    <div id="startMenu" class="absolute inset-0 z-30 glass-panel flex flex-col items-center justify-center p-6 text-center">
+        <div class="max-w-xl w-full bg-slate-950/90 p-8 rounded-3xl border border-cyan-500/40 shadow-2xl neon-border relative overflow-hidden">
+            <div class="absolute -right-10 -top-10 w-40 h-40 bg-pink-500/10 rounded-full blur-3xl"></div>
+            <div class="absolute -left-10 -bottom-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl"></div>
+
+            <div class="inline-block bg-red-600 text-white font-black text-xs px-3 py-1 rounded-full uppercase tracking-widest mb-3">
+                香港街頭保衛戰 ‧ 動作射擊
+            </div>
+            <h1 class="text-4xl sm:text-5xl font-black tracking-tight mb-2 text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-pink-400 to-cyan-400 neon-text-red">
+                港九殺敵傳
+            </h1>
+            <p class="text-cyan-300 font-bold text-lg mb-6 tracking-wide">HK NEON HERO DEFENSE</p>
+
+            <div class="text-gray-300 text-sm leading-relaxed mb-6 space-y-2 text-left bg-slate-900/70 p-4 rounded-xl border border-white/5">
+                <p><i class="fa-solid fa-shield-halved text-cyan-400 mr-2"></i><strong>背景：</strong> 變異狂暴敵軍入侵港九！作為霓虹大俠，你需要保衛旺角、尖沙咀、中環，並登頂獅子山徹底清剿惡勢力！</p>
+                <p><i class="fa-solid fa-keyboard text-yellow-400 mr-2"></i><strong>電腦操作：</strong> WASD 移動 | 滑鼠瞄準左鍵攻擊 | 數字鍵 1-3 切換武器 | E 鍵觸發獅子山必殺</p>
+                <p><i class="fa-solid fa-mobile-screen text-emerald-400 mr-2"></i><strong>手機操作：</strong> 左下搖桿移動 | 右下按鈕瞄準射擊與技能</p>
+            </div>
+
+            <button id="btnStartGame" class="w-full py-4 bg-gradient-to-r from-red-600 via-pink-600 to-cyan-500 hover:from-red-500 hover:to-cyan-400 text-white font-black text-xl rounded-2xl shadow-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3">
+                <i class="fa-solid fa-play"></i> 立即開戰 FIGHT NOW
+            </button>
+        </div>
+    </div>
+
+    <!-- Upgrade / Shop Modal between waves -->
+    <div id="shopModal" class="absolute inset-0 z-30 glass-panel flex flex-col items-center justify-center p-6 hidden">
+        <div class="max-w-2xl w-full bg-slate-950/95 p-6 sm:p-8 rounded-3xl border border-yellow-500/40 shadow-2xl">
+            <div class="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
+                <div>
+                    <h2 class="text-2xl font-black text-yellow-400 neon-text-yellow flex items-center gap-2">
+                        <i class="fa-solid fa-shop"></i> 港九避風塘黑市補給站
+                    </h2>
+                    <p class="text-xs text-gray-400">波次完成！消耗金幣升級裝備準備下一波戰鬥。</p>
+                </div>
+                <div class="text-right">
+                    <span class="text-xs text-gray-400 block">剩餘金幣</span>
+                    <span id="shopCoins" class="text-xl font-black text-yellow-400 font-mono">0</span>
+                </div>
+            </div>
+
+            <div id="shopItemList" class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 max-h-[50vh] overflow-y-auto pr-1">
+                <!-- Shop item cards dynamically injected JS -->
+            </div>
+
+            <button id="btnContinueWave" class="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black text-lg rounded-2xl shadow-lg transition-all active:scale-95">
+                前往下一區域 Continue to Next Stage <i class="fa-solid fa-arrow-right ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Over / Victory Modal -->
+    <div id="endModal" class="absolute inset-0 z-40 glass-panel flex flex-col items-center justify-center p-6 hidden">
+        <div class="max-w-md w-full bg-slate-950/95 p-8 rounded-3xl border border-red-500/50 text-center shadow-2xl">
+            <div id="endIcon" class="text-6xl mb-4 text-red-500">
+                <i class="fa-solid fa-skull-crossbones"></i>
+            </div>
+            <h2 id="endTitle" class="text-3xl font-black mb-2 text-red-500 neon-text-red">戰敗 – 英雄倒下</h2>
+            <p id="endSubtitle" class="text-gray-300 text-sm mb-6">港九街道再次陷入狂暴敵軍的手中...</p>
+
+            <div class="bg-slate-900/80 p-4 rounded-2xl border border-white/10 mb-6 space-y-2 text-left">
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-400">最終得分：</span>
+                    <span id="finalScore" class="font-bold text-emerald-400 font-mono">0</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-400">總擊殺數：</span>
+                    <span id="finalKills" class="font-bold text-cyan-400 font-mono">0</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-400">到達區域：</span>
+                    <span id="finalDistrict" class="font-bold text-yellow-400 font-mono">旺角</span>
+                </div>
+            </div>
+
+            <button id="btnRestart" class="w-full py-4 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 text-white font-black text-xl rounded-2xl shadow-lg transition-all active:scale-95">
+                <i class="fa-solid fa-rotate-right mr-2"></i> 重新討伐 Restart Game
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /* ------------------------------------------------------------------
+           AUDIO SYNTHESIZER (Web Audio API - Standalone procedural sound)
+           ------------------------------------------------------------------ */
+        class AudioFX {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playShoot() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(450, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.12);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.12);
+            }
+
+            playSlash() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(150, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+
+            playExplosion() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(120, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(20, this.ctx.currentTime + 0.4);
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.4);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.4);
+            }
+
+            playCoin() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(987.77, this.ctx.currentTime); // B5
+                osc.frequency.setValueAtTime(1318.51, this.ctx.currentTime + 0.08); // E6
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+
+            playHeal() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.3);
+            }
+
+            playUltimate() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(900, this.ctx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.6);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.6);
+            }
+        }
+
+        const audio = new AudioFX();
+
+        // Game Constants & Stage Definitions
+        const DISTRICTS = [
+            { id: 1, name: "旺角霓虹夜市 Mong Kok", bgNeon: ["旺角冰室", "點心王", "功夫館", "霓虹大牌檔"], color: "#ff0055" },
+            { id: 2, name: "尖沙咀海濱長廊 Tsim Sha Tsui", bgNeon: ["維港夜景", "尖東星光", "天星碼頭", "九龍夜總會"], color: "#00f0ff" },
+            { id: 3, name: "中環金融摩天樓 Central Financial", bgNeon: ["中環金庫", "遮打花園", "摩天大樓", "金融大廈"], color: "#ffcc00" },
+            { id: 4, name: "獅子山頂終極戰 Lion Rock Summit", bgNeon: ["獅子山精神", "港九不屈", "霓虹戰神", "終極決戰"], color: "#a855f7" }
+        ];
+
+        const WEAPONS = [
+            { id: 'blade', name: '雙截斬馬刀', type: 'melee', damage: 35, fireRate: 280, range: 110, icon: 'fa-kaaba', desc: '近戰範圍巨額傷害' },
+            { id: 'pistol', name: '雙持雙衝鋒槍', type: 'ranged', damage: 18, fireRate: 110, speed: 14, icon: 'fa-gun', desc: '高頻連射彈幕' },
+            { id: 'shotgun', name: '散彈噴火槍', type: 'shotgun', damage: 14, count: 6, fireRate: 500, speed: 11, icon: 'fa-burst', desc: '扇形範圍壓制' }
+        ];
+
+        // Canvas Setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Game State Variables
+        let gameState = 'MENU'; // MENU, PLAYING, SHOP, GAMEOVER
+        let score = 0;
+        let coins = 0;
+        let totalKills = 0;
+        let currentDistrictIdx = 0;
+        let currentWave = 1;
+        let waveEnemiesRemaining = 0;
+        let enemySpawnTimer = 0;
+        let keys = {};
+        let mouseX = canvas.width / 2;
+        let mouseY = canvas.height / 2;
+        let isMouseDown = false;
+        let lastShootTime = 0;
+
+        // Entities arrays
+        let player = null;
+        let enemies = [];
+        let bullets = [];
+        let particles = [];
+        let drops = [];
+        let floatingTexts = [];
+        let taxiStrikes = [];
+
+        // Mobile touch controls
+        let touchMoveDir = { x: 0, y: 0 };
+        let touchAiming = false;
+
+        class Player {
+            constructor() {
+                this.x = canvas.width / 2;
+                this.y = canvas.height / 2;
+                this.radius = 22;
+                this.speed = 4.5;
+                this.maxHp = 100;
+                this.hp = 100;
+                this.ultimate = 0; // 0 to 100
+                this.currentWeaponIdx = 0;
+                this.angle = 0;
+                this.invulnerableTimer = 0;
+                // Upgrades
+                this.damageMult = 1.0;
+                this.speedMult = 1.0;
+            }
+
+            update() {
+                let dx = 0;
+                let dy = 0;
+
+                // Keyboard input
+                if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
+                if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
+                if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
+                if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
+
+                // Mobile touch input
+                if (touchMoveDir.x !== 0 || touchMoveDir.y !== 0) {
+                    dx = touchMoveDir.x;
+                    dy = touchMoveDir.y;
+                }
+
+                // Normalize movement vector
+                const len = Math.hypot(dx, dy);
+                if (len > 0) {
+                    dx /= len;
+                    dy /= len;
+                    const moveSpeed = this.speed * this.speedMult;
+                    this.x += dx * moveSpeed;
+                    this.y += dy * moveSpeed;
+                }
+
+                // Keep player within bounds
+                this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
+                this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
+
+                // Aim orientation
+                if (!touchAiming) {
+                    this.angle = Math.atan2(mouseY - this.y, mouseX - this.x);
+                }
+
+                if (this.invulnerableTimer > 0) {
+                    this.invulnerableTimer--;
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+
+                // Invulnerability flicker
+                if (this.invulnerableTimer > 0 && Math.floor(Date.now() / 80) % 2 === 0) {
+                    ctx.globalAlpha = 0.5;
+                }
+
+                // Player Outer Neon Glow Aura
+                const glowGradient = ctx.createRadialGradient(0, 0, 5, 0, 0, this.radius + 15);
+                glowGradient.addColorStop(0, 'rgba(0, 240, 255, 0.6)');
+                glowGradient.addColorStop(1, 'rgba(0, 240, 255, 0)');
+                ctx.fillStyle = glowGradient;
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius + 15, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Player Body (Cyber martial artist hero)
+                ctx.fillStyle = '#0f172a';
+                ctx.strokeStyle = '#00f0ff';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Hero Bandana / Headband Trail
+                ctx.fillStyle = '#ff0055';
+                ctx.fillRect(-this.radius - 8, -4, 10, 8);
+
+                // Weapon rendering
+                ctx.fillStyle = '#ffcc00';
+                ctx.fillRect(8, 4, 18, 5);
+
+                ctx.restore();
+            }
+
+            takeDamage(amount) {
+                if (this.invulnerableTimer > 0) return;
+                this.hp -= amount;
+                this.invulnerableTimer = 25; // short grace period
+                createParticles(this.x, this.y, '#ff0055', 8);
+                createFloatingText(this.x, this.y - 20, `-${amount}`, '#ff0055');
+
+                if (this.hp <= 0) {
+                    this.hp = 0;
+                    triggerGameOver(false);
+                }
+                updateHUD();
+            }
+        }
+
+        class Enemy {
+            constructor(type) {
+                // Spawn randomly around screen borders
+                if (Math.random() < 0.5) {
+                    this.x = Math.random() < 0.5 ? -30 : canvas.width + 30;
+                    this.y = Math.random() * canvas.height;
+                } else {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() < 0.5 ? -30 : canvas.height + 30;
+                }
+
+                this.type = type; // 'scout', 'brute', 'ninja', 'boss'
+                
+                if (type === 'scout') {
+                    this.radius = 16;
+                    this.speed = 2.8 + Math.random() * 0.5;
+                    this.hp = 35 + currentWave * 8;
+                    this.maxHp = this.hp;
+                    this.damage = 10;
+                    this.color = '#ef4444';
+                    this.coinValue = 10;
+                    this.scoreValue = 50;
+                } else if (type === 'brute') {
+                    this.radius = 28;
+                    this.speed = 1.4;
+                    this.hp = 110 + currentWave * 25;
+                    this.maxHp = this.hp;
+                    this.damage = 22;
+                    this.color = '#f97316';
+                    this.coinValue = 25;
+                    this.scoreValue = 120;
+                } else if (type === 'ninja') {
+                    this.radius = 18;
+                    this.speed = 3.6;
+                    this.hp = 50 + currentWave * 10;
+                    this.maxHp = this.hp;
+                    this.damage = 14;
+                    this.color = '#a855f7';
+                    this.coinValue = 18;
+                    this.scoreValue = 90;
+                } else if (type === 'boss') {
+                    this.radius = 48;
+                    this.speed = 1.2;
+                    this.hp = 800 + currentWave * 300;
+                    this.maxHp = this.hp;
+                    this.damage = 30;
+                    this.color = '#e11d48';
+                    this.coinValue = 200;
+                    this.scoreValue = 1000;
+                }
+            }
+
+            update() {
+                if (!player) return;
+                const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                this.x += Math.cos(angle) * this.speed;
+                this.y += Math.sin(angle) * this.speed;
+
+                // Collision with player
+                const dist = Math.hypot(player.x - this.x, player.y - this.y);
+                if (dist < this.radius + player.radius) {
+                    player.takeDamage(this.damage);
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+
+                // Enemy body
+                ctx.fillStyle = this.color;
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // Boss inner core
+                if (this.type === 'boss') {
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+
+                    // Boss Health Bar above head
+                    ctx.fillStyle = '#1e293b';
+                    ctx.fillRect(-30, -this.radius - 16, 60, 8);
+                    ctx.fillStyle = '#ef4444';
+                    ctx.fillRect(-30, -this.radius - 16, (this.hp / this.maxHp) * 60, 8);
+                }
+
+                ctx.restore();
+            }
+        }
+
+        class Bullet {
+            constructor(x, y, angle, speed, damage, isPlayer = true, color = '#00f0ff') {
+                this.x = x;
+                this.y = y;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.damage = damage;
+                this.isPlayer = isPlayer;
+                this.color = color;
+                this.radius = 4;
+                this.life = 100;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life--;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.fillStyle = this.color;
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class DropItem {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type; // 'coin', 'dimsum'
+                this.radius = 10;
+                this.bob = Math.random() * Math.PI * 2;
+            }
+
+            update() {
+                this.bob += 0.08;
+                if (!player) return;
+                const dist = Math.hypot(player.x - this.x, player.y - this.y);
+                if (dist < player.radius + this.radius + 20) {
+                    // Magnetize towards player
+                    this.x += (player.x - this.x) * 0.15;
+                    this.y += (player.y - this.y) * 0.15;
+
+                    if (dist < player.radius + this.radius) {
+                        if (this.type === 'coin') {
+                            coins += 15;
+                            audio.playCoin();
+                            createFloatingText(this.x, this.y, '+$15', '#eab308');
+                        } else if (this.type === 'dimsum') {
+                            player.hp = Math.min(player.maxHp, player.hp + 25);
+                            audio.playHeal();
+                            createFloatingText(this.x, this.y, '+25 HP', '#22c55e');
+                        }
+                        updateHUD();
+                        return true; // remove item
+                    }
+                }
+                return false;
+            }
+
+            draw() {
+                ctx.save();
+                const offsetY = Math.sin(this.bob) * 4;
+                ctx.translate(this.x, this.y + offsetY);
+
+                if (this.type === 'coin') {
+                    ctx.fillStyle = '#eab308';
+                    ctx.shadowColor = '#fde047';
+                    ctx.shadowBlur = 8;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                } else { // dimsum health item
+                    ctx.fillStyle = '#ffffff';
+                    ctx.shadowColor = '#22c55e';
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#ef4444';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+        }
+
+        function createParticles(x, y, color, count = 10) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 1 + Math.random() * 4;
+                particles.push({
+                    x, y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    color,
+                    radius: 2 + Math.random() * 3,
+                    alpha: 1,
+                    life: 20 + Math.random() * 20
+                });
+            }
+        }
+
+        function createFloatingText(x, y, text, color) {
+            floatingTexts.push({
+                x, y, text, color,
+                alpha: 1,
+                vy: -1.2,
+                life: 45
+            });
+        }
+
+        function triggerTaxiStrike() {
+            if (coins < 30) {
+                createFloatingText(player.x, player.y - 30, '金幣不足 ($30)!', '#ef4444');
+                return;
+            }
+            coins -= 30;
+            updateHUD();
+
+            audio.playExplosion();
+            // Red Taxi Sweeps across the screen horizontally
+            const startY = Math.random() * (canvas.height - 100) + 50;
+            taxiStrikes.push({
+                x: -120,
+                y: startY,
+                speed: 22,
+                width: 100,
+                height: 44
+            });
+            createFloatingText(player.x, player.y - 40, '紅的支援衝鋒！', '#facc15');
+        }
+
+        function triggerUltimate() {
+            if (!player || player.ultimate < 100) return;
+            player.ultimate = 0;
+            updateHUD();
+
+            audio.playUltimate();
+            createFloatingText(player.x, player.y - 50, '獅子山鎮壓術！！', '#00f0ff');
+
+            // Screen clearing dragon pulse attack
+            enemies.forEach(enemy => {
+                enemy.hp -= 250;
+                createParticles(enemy.x, enemy.y, '#00f0ff', 20);
+                createFloatingText(enemy.x, enemy.y - 20, '-250', '#00f0ff');
+            });
+        }
+
+        function attackWeapon() {
+            if (!player) return;
+            const now = Date.now();
+            const curWeapon = WEAPONS[player.currentWeaponIdx];
+
+            if (now - lastShootTime < curWeapon.fireRate) return;
+            lastShootTime = now;
+
+            const baseDamage = curWeapon.damage * player.damageMult;
+
+            if (curWeapon.type === 'melee') {
+                audio.playSlash();
+                // Arc melee attack
+                const range = curWeapon.range;
+                const arcAngle = Math.PI / 1.8;
+
+                enemies.forEach(enemy => {
+                    const dist = Math.hypot(enemy.x - player.x, enemy.y - player.y);
+                    if (dist <= range) {
+                        const angleToEnemy = Math.atan2(enemy.y - player.y, enemy.x - player.x);
+                        let diff = angleToEnemy - player.angle;
+                        // Normalize angle difference to [-PI, PI]
+                        while (diff < -Math.PI) diff += Math.PI * 2;
+                        while (diff > Math.PI) diff -= Math.PI * 2;
+
+                        if (Math.abs(diff) < arcAngle / 2) {
+                            enemy.hp -= baseDamage;
+                            createParticles(enemy.x, enemy.y, '#ff0055', 12);
+                            createFloatingText(enemy.x, enemy.y - 20, `-${Math.round(baseDamage)}`, '#ff0055');
+                            player.ultimate = Math.min(100, player.ultimate + 4);
+                            updateHUD();
+                        }
+                    }
+                });
+
+                // Visual slice arc particle wave
+                for (let a = -arcAngle / 2; a <= arcAngle / 2; a += 0.2) {
+                    const px = player.x + Math.cos(player.angle + a) * range;
+                    const py = player.y + Math.sin(player.angle + a) * range;
+                    createParticles(px, py, '#00f0ff', 2);
+                }
+
+            } else if (curWeapon.type === 'ranged') {
+                audio.playShoot();
+                bullets.push(new Bullet(player.x, player.y, player.angle, curWeapon.speed, baseDamage, true, '#00f0ff'));
+                player.ultimate = Math.min(100, player.ultimate + 2);
+                updateHUD();
+
+            } else if (curWeapon.type === 'shotgun') {
+                audio.playShoot();
+                const count = curWeapon.count;
+                const spread = 0.45;
+                for (let i = 0; i < count; i++) {
+                    const offsetAngle = (i - (count - 1) / 2) * (spread / count);
+                    bullets.push(new Bullet(player.x, player.y, player.angle + offsetAngle, curWeapon.speed, baseDamage, true, '#facc15'));
+                }
+                player.ultimate = Math.min(100, player.ultimate + 5);
+                updateHUD();
+            }
+        }
+
+        function initWeaponUI() {
+            const container = document.getElementById('weaponList');
+            container.innerHTML = '';
+            WEAPONS.forEach((w, idx) => {
+                const btn = document.createElement('button');
+                btn.className = `px-3 py-1.5 rounded-xl border flex items-center gap-2 text-xs font-bold transition-all ${
+                    idx === player.currentWeaponIdx 
+                        ? 'border-cyan-400 bg-cyan-500/20 text-cyan-300 shadow-md' 
+                        : 'border-white/10 bg-slate-800/60 text-gray-400 hover:text-white'
+                }`;
+                btn.innerHTML = `<i class="fa-solid ${w.icon}"></i> <span>${w.name}</span>`;
+                btn.onclick = () => {
+                    player.currentWeaponIdx = idx;
+                    initWeaponUI();
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function updateHUD() {
+            if (!player) return;
+            document.getElementById('hpText').innerText = `${Math.ceil(player.hp)} / ${player.maxHp}`;
+            document.getElementById('hpBar').style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
+
+            document.getElementById('ultText').innerText = `${Math.floor(player.ultimate)}%`;
+            document.getElementById('ultBar').style.width = `${player.ultimate}%`;
+
+            const ultBtn = document.getElementById('btnUltimate');
+            if (player.ultimate >= 100) {
+                ultBtn.classList.remove('opacity-50');
+                ultBtn.classList.add('animate-bounce');
+            } else {
+                ultBtn.classList.add('opacity-50');
+                ultBtn.classList.remove('animate-bounce');
+            }
+
+            document.getElementById('coinCount').innerText = coins;
+            document.getElementById('scoreText').innerText = score;
+
+            const dist = DISTRICTS[currentDistrictIdx];
+            document.getElementById('districtName').innerText = dist.name;
+            document.getElementById('waveInfo').innerText = `第 ${currentWave} 波次`;
+        }
+
+        function startNextWave() {
+            gameState = 'PLAYING';
+            document.getElementById('shopModal').classList.add('hidden');
+            document.getElementById('hudOverlay').classList.remove('hidden');
+
+            waveEnemiesRemaining = 12 + currentWave * 6;
+            enemySpawnTimer = 0;
+            updateHUD();
+        }
+
+        function openShopMenu() {
+            gameState = 'SHOP';
+            document.getElementById('hudOverlay').classList.add('hidden');
+            document.getElementById('shopModal').classList.remove('hidden');
+            document.getElementById('shopCoins').innerText = coins;
+
+            const list = document.getElementById('shopItemList');
+            list.innerHTML = '';
+
+            const items = [
+                { id: 'dmg', name: '功夫提升 (攻擊力 +20%)', cost: 60, icon: 'fa-hand-fist', apply: () => { player.damageMult += 0.2; } },
+                { id: 'spd', name: '霓虹輕功 (移動速度 +15%)', cost: 50, icon: 'fa-bolt', apply: () => { player.speedMult += 0.15; } },
+                { id: 'heal', name: '港式雲吞麵 (滿血復原)', cost: 40, icon: 'fa-bowl-food', apply: () => { player.hp = player.maxHp; } },
+                { id: 'maxhp', name: '強健體魄 (最大生命 +30)', cost: 70, icon: 'fa-heart-circle-plus', apply: () => { player.maxHp += 30; player.hp += 30; } }
+            ];
+
+            items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'glass-panel p-4 rounded-2xl flex items-center justify-between border border-white/10 hover:border-yellow-400/50 transition-all';
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-yellow-500/20 text-yellow-400 flex items-center justify-center text-lg">
+                            <i class="fa-solid ${item.icon}"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-sm text-white">${item.name}</div>
+                            <div class="text-xs text-yellow-400 font-mono">$${item.cost} 金幣</div>
+                        </div>
+                    </div>
+                    <button class="px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-black text-xs rounded-xl shadow transition-all active:scale-95">
+                        購買 Buy
+                    </button>
+                `;
+                card.querySelector('button').onclick = () => {
+                    if (coins >= item.cost) {
+                        coins -= item.cost;
+                        item.apply();
+                        audio.playCoin();
+                        document.getElementById('shopCoins').innerText = coins;
+                        updateHUD();
+                        card.querySelector('button').innerText = '已購買';
+                        card.querySelector('button').disabled = true;
+                        card.querySelector('button').classList.add('opacity-50');
+                    } else {
+                        alert('金幣不足！不停殺敵賺取金幣吧！');
+                    }
+                };
+                list.appendChild(card);
+            });
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw District Dynamic Background
+            drawBackground();
+
+            if (gameState === 'PLAYING') {
+                // Handle Continuous Attack on Mouse Down
+                if (isMouseDown) {
+                    attackWeapon();
+                }
+
+                // Enemy Spawner Logic
+                enemySpawnTimer++;
+                if (enemySpawnTimer > Math.max(25, 90 - currentWave * 5) && waveEnemiesRemaining > 0) {
+                    enemySpawnTimer = 0;
+                    waveEnemiesRemaining--;
+
+                    // Determine enemy type spawn
+                    const rand = Math.random();
+                    let eType = 'scout';
+                    if (rand > 0.8) eType = 'brute';
+                    else if (rand > 0.6) eType = 'ninja';
+
+                    enemies.push(new Enemy(eType));
+                }
+
+                // Spawn District Boss at Wave 5, 10, 15
+                if (waveEnemiesRemaining === 0 && enemies.length === 0) {
+                    if (currentWave % 4 === 0) {
+                        // District completed! Transition to next location
+                        currentDistrictIdx = Math.min(DISTRICTS.length - 1, currentDistrictIdx + 1);
+                    }
+                    currentWave++;
+                    openShopMenu();
+                }
+
+                // Update & Render Player
+                player.update();
+                player.draw();
+
+                // Update & Render Bullets
+                for (let i = bullets.length - 1; i >= 0; i--) {
+                    const b = bullets[i];
+                    b.update();
+                    b.draw();
+
+                    // Check bullet collisions with enemies
+                    let bulletRemoved = false;
+                    for (let j = enemies.length - 1; j >= 0; j--) {
+                        const e = enemies[j];
+                        const dist = Math.hypot(b.x - e.x, b.y - e.y);
+                        if (dist < e.radius + b.radius) {
+                            e.hp -= b.damage;
+                            createParticles(e.x, e.y, b.color, 6);
+                            createFloatingText(e.x, e.y - 15, `-${Math.round(b.damage)}`, b.color);
+
+                            if (e.hp <= 0) {
+                                coins += e.coinValue;
+                                score += e.scoreValue;
+                                totalKills++;
+
+                                // Random Dim Sum drops
+                                if (Math.random() < 0.25) {
+                                    drops.push(new DropItem(e.x, e.y, Math.random() < 0.7 ? 'coin' : 'dimsum'));
+                                }
+                                enemies.splice(j, 1);
+                                audio.playExplosion();
+                            }
+
+                            bulletRemoved = true;
+                            break;
+                        }
+                    }
+
+                    if (bulletRemoved || b.life <= 0 || b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
+                        bullets.splice(i, 1);
+                    }
+                }
+
+                // Update & Render Enemies
+                enemies.forEach(e => {
+                    e.update();
+                    e.draw();
+                });
+
+                // Update & Render Taxi Strike Special Attack
+                for (let i = taxiStrikes.length - 1; i >= 0; i--) {
+                    const taxi = taxiStrikes[i];
+                    taxi.x += taxi.speed;
+
+                    // Draw Taxi Sprite
+                    ctx.save();
+                    ctx.fillStyle = '#dc2626'; // Red taxi body
+                    ctx.shadowColor = '#facc15';
+                    ctx.shadowBlur = 15;
+                    ctx.fillRect(taxi.x, taxi.y, taxi.width, taxi.height);
+                    ctx.fillStyle = '#ffffff'; // Roof top white
+                    ctx.fillRect(taxi.x + 30, taxi.y - 6, 40, 8);
+                    ctx.restore();
+
+                    // Damage all enemies hit by Taxi
+                    enemies.forEach(e => {
+                        if (e.x > taxi.x && e.x < taxi.x + taxi.width && Math.abs(e.y - (taxi.y + taxi.height / 2)) < 50) {
+                            e.hp -= 300;
+                            createParticles(e.x, e.y, '#dc2626', 15);
+                            createFloatingText(e.x, e.y - 20, '-300 撞飛!', '#ef4444');
+                        }
+                    });
+
+                    if (taxi.x > canvas.width + 150) {
+                        taxiStrikes.splice(i, 1);
+                    }
+                }
+
+                // Update & Render Drop Items
+                for (let i = drops.length - 1; i >= 0; i--) {
+                    if (drops[i].update()) {
+                        drops.splice(i, 1);
+                    } else {
+                        drops[i].draw();
+                    }
+                }
+
+                // Update & Render Particles
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.life--;
+                    p.alpha = p.life / 40;
+
+                    ctx.save();
+                    ctx.globalAlpha = Math.max(0, p.alpha);
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+
+                    if (p.life <= 0) particles.splice(i, 1);
+                }
+
+                // Update & Render Floating Combat Text
+                for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                    const ft = floatingTexts[i];
+                    ft.y += ft.vy;
+                    ft.life--;
+                    ft.alpha = ft.life / 45;
+
+                    ctx.save();
+                    ctx.globalAlpha = Math.max(0, ft.alpha);
+                    ctx.font = '900 16px "Noto Sans TC", sans-serif';
+                    ctx.fillStyle = ft.color;
+                    ctx.shadowColor = ft.color;
+                    ctx.shadowBlur = 6;
+                    ctx.fillText(ft.text, ft.x, ft.y);
+                    ctx.restore();
+
+                    if (ft.life <= 0) floatingTexts.splice(i, 1);
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function drawBackground() {
+            const currentDist = DISTRICTS[currentDistrictIdx];
+
+            // Dark Night Sky Grid
+            ctx.fillStyle = '#0a0d14';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Subtle Cyber Grid lines
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.lineWidth = 1;
+            const gridSize = 60;
+            for (let x = 0; x < canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            // Draw Background Atmospheric Neon Signs (HK Style Traditional Chinese)
+            currentDist.bgNeon.forEach((signText, index) => {
+                const posX = (index + 0.5) * (canvas.width / currentDist.bgNeon.length);
+                const posY = 70 + (index % 2) * 40;
+
+                ctx.save();
+                ctx.font = '900 24px "Noto Sans TC", sans-serif';
+                ctx.fillStyle = currentDist.color;
+                ctx.shadowColor = currentDist.color;
+                ctx.shadowBlur = 18;
+                ctx.textAlign = 'center';
+                ctx.fillText(signText, posX, posY);
+
+                // Neon Sign Border Frame
+                const metrics = ctx.measureText(signText);
+                ctx.strokeStyle = currentDist.color;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(posX - metrics.width / 2 - 12, posY - 26, metrics.width + 24, 36);
+                ctx.restore();
+            });
+        }
+
+        function triggerGameOver(victory = false) {
+            gameState = 'GAMEOVER';
+            document.getElementById('hudOverlay').classList.add('hidden');
+            document.getElementById('endModal').classList.remove('hidden');
+
+            const endTitle = document.getElementById('endTitle');
+            const endIcon = document.getElementById('endIcon');
+            const endSubtitle = document.getElementById('endSubtitle');
+
+            if (victory) {
+                endIcon.innerHTML = '<i class="fa-solid fa-trophy text-yellow-400"></i>';
+                endTitle.innerText = '大獲全勝 – 港九英雄！';
+                endTitle.className = 'text-3xl font-black mb-2 text-yellow-400 neon-text-yellow';
+                endSubtitle.innerText = '你成功的擊退所有惡勢力，守護了港九繁華！';
+            } else {
+                endIcon.innerHTML = '<i class="fa-solid fa-skull-crossbones text-red-500"></i>';
+                endTitle.innerText = '戰敗 – 英雄倒下';
+                endTitle.className = 'text-3xl font-black mb-2 text-red-500 neon-text-red';
+                endSubtitle.innerText = '港九街道再次陷入狂暴敵軍的手中...';
+            }
+
+            document.getElementById('finalScore').innerText = score;
+            document.getElementById('finalKills').innerText = totalKills;
+            document.getElementById('finalDistrict').innerText = DISTRICTS[currentDistrictIdx].name;
+        }
+
+        function resetAndStartGame() {
+            audio.init();
+            score = 0;
+            coins = 0;
+            totalKills = 0;
+            currentDistrictIdx = 0;
+            currentWave = 1;
+            enemies = [];
+            bullets = [];
+            particles = [];
+            drops = [];
+            floatingTexts = [];
+            taxiStrikes = [];
+
+            player = new Player();
+            initWeaponUI();
+
+            document.getElementById('startMenu').classList.add('hidden');
+            document.getElementById('endModal').classList.add('hidden');
+            document.getElementById('shopModal').classList.add('hidden');
+
+            startNextWave();
+        }
+
+        // Keyboard Control Handlers
+        window.addEventListener('keydown', e => {
+            keys[e.code] = true;
+
+            if (e.code === 'Digit1') { player.currentWeaponIdx = 0; initWeaponUI(); }
+            if (e.code === 'Digit2') { player.currentWeaponIdx = 1; initWeaponUI(); }
+            if (e.code === 'Digit3') { player.currentWeaponIdx = 2; initWeaponUI(); }
+            if (e.code === 'KeyE') { triggerUltimate(); }
+            if (e.code === 'KeyQ') { triggerTaxiStrike(); }
+        });
+
+        window.addEventListener('keyup', e => {
+            keys[e.code] = false;
+        });
+
+        // Mouse Controls
+        window.addEventListener('mousemove', e => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        window.addEventListener('mousedown', e => {
+            if (gameState === 'PLAYING') {
+                isMouseDown = true;
+                attackWeapon();
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            isMouseDown = false;
+        });
+
+        // Setup Virtual Joystick for Mobile Touch Devices
+        const moveJoyZone = document.getElementById('moveJoyZone');
+        const moveJoyKnob = document.getElementById('moveJoyKnob');
+
+        let joyTouchId = null;
+        let joyCenter = { x: 0, y: 0 };
+
+        moveJoyZone.addEventListener('touchstart', e => {
+            const touch = e.changedTouches[0];
+            joyTouchId = touch.identifier;
+            const rect = moveJoyZone.getBoundingClientRect();
+            joyCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        }, { passive: true });
+
+        moveJoyZone.addEventListener('touchmove', e => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+                if (touch.identifier === joyTouchId) {
+                    const dx = touch.clientX - joyCenter.x;
+                    const dy = touch.clientY - joyCenter.y;
+                    const maxDist = 45;
+                    const dist = Math.min(maxDist, Math.hypot(dx, dy));
+                    const angle = Math.atan2(dy, dx);
+
+                    const knobX = Math.cos(angle) * dist;
+                    const knobY = Math.sin(angle) * dist;
+
+                    moveJoyKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+
+                    touchMoveDir = {
+                        x: Math.cos(angle) * (dist / maxDist),
+                        y: Math.sin(angle) * (dist / maxDist)
+                    };
+                }
+            }
+        }, { passive: true });
+
+        const resetJoystick = () => {
+            joyTouchId = null;
+            moveJoyKnob.style.transform = `translate(0px, 0px)`;
+            touchMoveDir = { x: 0, y: 0 };
+        };
+
+        moveJoyZone.addEventListener('touchend', resetJoystick);
+        moveJoyZone.addEventListener('touchcancel', resetJoystick);
+
+        // Mobile Buttons
+        document.getElementById('btnAttack').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isMouseDown = true;
+            attackWeapon();
+        });
+        document.getElementById('btnAttack').addEventListener('touchend', () => {
+            isMouseDown = false;
+        });
+
+        document.getElementById('btnUltimate').addEventListener('click', triggerUltimate);
+        document.getElementById('btnTaxiStrike').addEventListener('click', triggerTaxiStrike);
+
+        // Modal Button Handlers
+        document.getElementById('btnStartGame').addEventListener('click', resetAndStartGame);
+        document.getElementById('btnRestart').addEventListener('click', resetAndStartGame);
+        document.getElementById('btnContinueWave').addEventListener('click', startNextWave);
+
+        // Window Onload Initialization
+        window.onload = () => {
+            player = new Player();
+            initWeaponUI();
+            gameLoop();
+        };
+    </script>
+</body>
+</html>
