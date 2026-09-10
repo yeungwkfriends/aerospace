@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>火星探測任務：火箭發射與降落挑戰</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        
+        * {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            touch-action: manipulation;
+            overscroll-behavior-y: none;
+        }
+
+        #gameCanvas {
+            background: #020617;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+        }
+
+        /* Pulse animation for CTA buttons */
+        .pulse-btn {
+            animation: pulse-animation 1.2s infinite ease-in-out;
+        }
+        @keyframes pulse-animation {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        /* Screen shake effect */
+        .shake {
+            animation: shake-anim 0.2s infinite;
+        }
+        @keyframes shake-anim {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            20% { transform: translate(-2px, 0px) rotate(-0.5deg); }
+            40% { transform: translate(1px, -1px) rotate(0.5deg); }
+            60% { transform: translate(-1px, 1px) rotate(0deg); }
+            80% { transform: translate(2px, 1px) rotate(0.5deg); }
+            100% { transform: translate(1px, -2px) rotate(-0.5deg); }
+        }
+
+        /* Custom scrollbar for small modal views if needed */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-start p-2 sm:p-4 max-w-lg mx-auto select-none">
+
+    <!-- 標題與簡介 (精簡版) -->
+    <header class="w-full text-center my-1">
+        <h1 class="text-lg sm:text-xl font-black text-amber-400 flex items-center justify-center gap-1">
+            🚀 火星探測任務
+        </h1>
+        <p class="text-slate-300 text-[11px] sm:text-xs leading-tight mt-0.5">
+            選出正確指令，成功登陸火星！
+        </p>
+    </header>
+
+    <!-- 主遊戲區域 -->
+    <main class="w-full flex flex-col items-center">
+        
+        <!-- 狀態與儀表板 (極簡單行) -->
+        <div class="w-full bg-slate-800/90 px-3 py-1.5 rounded-lg mb-1.5 flex justify-between items-center text-xs border border-slate-700/80 shadow-sm">
+            <div class="flex items-center gap-1.5 min-w-0">
+                <span class="text-slate-400 text-[11px] shrink-0">階段:</span>
+                <span id="stageName" class="font-bold text-cyan-400 truncate text-xs">準備發射</span>
+            </div>
+            <div class="flex items-center gap-3 shrink-0 font-mono text-[11px]">
+                <div><span class="text-slate-400">速:</span> <span id="speedDisplay" class="font-bold text-emerald-400">0</span> <span class="text-[9px] text-slate-400">km/h</span></div>
+                <div><span class="text-slate-400">高:</span> <span id="altDisplay" class="font-bold text-amber-400">0</span> <span class="text-[9px] text-slate-400">km</span></div>
+            </div>
+        </div>
+
+        <!-- 動畫 Canvas 區域 (加大獨立遊戲畫面) -->
+        <div id="canvasContainer" class="relative w-full aspect-[4/3] max-h-[380px] sm:max-h-[420px] rounded-xl overflow-hidden border border-slate-700/60 shadow-lg">
+            <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+
+            <!-- 倒數 / 警告覆蓋層 -->
+            <div id="overlay" class="absolute inset-0 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-4 text-center z-20 transition-all duration-300">
+                <h2 id="overlayTitle" class="text-xl sm:text-2xl font-black text-amber-400 mb-1.5">火星探測任務</h2>
+                <p id="overlayDesc" class="text-slate-300 text-xs sm:text-sm mb-4 max-w-xs leading-relaxed">
+                    選出正確指令，引導探測車安全降落！
+                </p>
+                <button id="startBtn" onclick="startMission()" class="bg-amber-500 active:bg-amber-400 text-slate-950 font-black px-6 py-2.5 rounded-full text-base shadow-lg active:scale-95 transition cursor-pointer pulse-btn">
+                    發射火箭！
+                </button>
+            </div>
+        </div>
+
+        <!-- 互動控制區 -->
+        <div class="w-full mt-2 bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/80 flex flex-col items-center">
+            
+            <!-- 倒數秒數提示 (緊湊化) -->
+            <div id="timerContainer" class="hidden mb-1.5 flex items-center justify-center gap-1.5 bg-red-950/90 border border-red-500/50 px-3 py-0.5 rounded-full">
+                <span class="text-red-400 text-xs font-bold">⏱️ 剩餘時間：</span>
+                <span id="timerDisplay" class="text-xl font-black font-mono text-red-400 tracking-wider">4.5s</span>
+            </div>
+
+            <!-- 第 4 階段高度窗口進度條 (手機簡化) -->
+            <div id="altZoneContainer" class="hidden w-full my-1 bg-slate-900/90 p-2 rounded-lg border border-slate-700">
+                <div class="flex justify-between text-[10px] mb-1 font-bold">
+                    <span class="text-red-400">85km (過高)</span>
+                    <span class="text-emerald-400">45km - 15km (開傘區)</span>
+                    <span class="text-red-400">15km (過低)</span>
+                </div>
+                <div class="w-full h-3.5 bg-red-900/50 rounded-full overflow-hidden relative border border-slate-600">
+                    <!-- 綠色安全區域標示 (45km - 15km) -->
+                    <div class="absolute top-0 bottom-0 bg-emerald-500/50 border-x border-emerald-300" style="left: 47.06%; right: 17.65%;"></div>
+                    <!-- 當前高度指示標記 -->
+                    <div id="altPointer" class="absolute top-0 bottom-0 w-2 bg-amber-300 shadow-[0_0_6px_#fde047] transition-all duration-75" style="left: 0%;"></div>
+                </div>
+            </div>
+
+            <!-- 第 1 階段反作用力進度條 -->
+            <div id="thrustZoneContainer" class="hidden w-full my-1 bg-slate-900/90 p-2 rounded-lg border border-slate-700">
+                <div class="flex justify-between text-[10px] mb-1 font-bold">
+                    <span class="text-red-400">🔻 重力</span>
+                    <span id="thrustValueText" class="text-amber-400 font-mono">反作用力: 0%</span>
+                    <span class="text-emerald-400">🚀 門檻 100%</span>
+                </div>
+                <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-600 relative">
+                    <div id="thrustProgressBar" class="h-full bg-gradient-to-r from-red-500 via-amber-400 to-emerald-400 w-0 transition-all duration-75"></div>
+                </div>
+            </div>
+
+            <!-- 指示引導文字 -->
+            <div id="instructionText" class="text-slate-200 text-xs font-bold my-1 text-center min-h-[2rem] flex items-center justify-center px-1">
+                點擊上方按鈕開始發射。
+            </div>
+            
+            <!-- 多選按鈕網格 (手機 2 欄佈局, 確保觸控點擊) -->
+            <div id="actionButtonsGrid" class="w-full grid grid-cols-2 gap-2 mt-1">
+                <button disabled class="col-span-2 min-h-[44px] py-2.5 rounded-lg text-sm font-bold bg-slate-700/50 text-slate-400 opacity-60 cursor-not-allowed">
+                    等待任務開始...
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            // High DPI adjustment for crisp mobile rendering
+            const rect = canvasContainer.getBoundingClientRect();
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function toggleScienceCard() {
+            const content = document.getElementById('scienceContent');
+            const icon = document.getElementById('scienceToggleIcon');
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                icon.style.transform = 'rotate(180deg)';
+            } else {
+                content.classList.add('hidden');
+                icon.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // Game state variables
+        let stage = 0;
+        let stage1Step = 0;
+        let actionWindowStart = 0;
+        let actionWindowDuration = 0;
+        let failureType = "";
+        let currentCorrectAction = "";
+
+        const ALL_ACTIONS = [
+            { id: 'boost', label: '🚀 加大推進力！', style: 'bg-red-600 active:bg-red-500 text-white' },
+            { id: 'separate', label: '✂️ 分離燃料艙！', style: 'bg-amber-500 active:bg-amber-400 text-slate-950' },
+            { id: 'solar', label: '☀️ 展開太陽能板！', style: 'bg-sky-600 active:bg-sky-500 text-white' },
+            { id: 'brake', label: '🔥 大氣層減速！', style: 'bg-orange-600 active:bg-orange-500 text-white' },
+            { id: 'parachute', label: '🪂 開啟降落傘！', style: 'bg-emerald-600 active:bg-emerald-500 text-white' }
+        ];
+
+        let rocketY = 0;
+        let rocketX = 0;
+        let rocketAngle = 0;
+        let rocketSpeed = 0;
+        let altitude = 0;
+        let particles = [];
+        let stars = [];
+        let debrisList = [];
+        
+        let stageSeparated = false;
+        let parachuteOpened = false;
+        let parachuteTorn = false;
+        let isBoosted = false;
+        let isBraking = false;
+        let actionCompleted = false;
+
+        let thrustProgress = 0;
+        let cruiseProgress = 0;
+        let spacecraftSolarProgress = 0;
+        let spacecraftSolarDeployed = false;
+
+        let roverX = 0;
+        let roverDeployed = false;
+        let isRoverMoving = false;
+        let solarPanelProgress = 0;
+        let isDeployingSolarPanels = false;
+
+        // Dynamic viewport getters for standardizing rendering
+        function getCanvasWidth() {
+            return canvasContainer.clientWidth;
+        }
+        function getCanvasHeight() {
+            return canvasContainer.clientHeight;
+        }
+
+        // UI references
+        const stageNameEl = document.getElementById('stageName');
+        const speedDisplayEl = document.getElementById('speedDisplay');
+        const altDisplayEl = document.getElementById('altDisplay');
+        const overlayEl = document.getElementById('overlay');
+        const overlayTitleEl = document.getElementById('overlayTitle');
+        const overlayDescEl = document.getElementById('overlayDesc');
+        const startBtnEl = document.getElementById('startBtn');
+        const actionButtonsGridEl = document.getElementById('actionButtonsGrid');
+        const instructionTextEl = document.getElementById('instructionText');
+        const timerContainerEl = document.getElementById('timerContainer');
+        const timerDisplayEl = document.getElementById('timerDisplay');
+
+        for (let i = 0; i < 35; i++) {
+            stars.push({
+                x: Math.random() * 400,
+                y: Math.random() * 250,
+                size: Math.random() * 1.8 + 0.8,
+                speed: Math.random() * 40 + 15
+            });
+        }
+
+        let lastTime = performance.now();
+        function gameLoop(now) {
+            const dt = (now - lastTime) / 1000;
+            lastTime = now;
+
+            update(dt, now);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update(dt, now) {
+            if (stage === 0) return;
+
+            const cW = getCanvasWidth();
+            const cH = getCanvasHeight();
+
+            // Timer check
+            if (!actionCompleted && (stage === 1 || stage === 2 || stage === 2.5 || stage === 3 || stage === 4)) {
+                const remaining = Math.max(0, (actionWindowDuration - (now - actionWindowStart)) / 1000);
+                timerDisplayEl.innerText = remaining.toFixed(1) + "s";
+
+                if (remaining <= 0) {
+                    handleTimeOutFailure();
+                    return;
+                }
+            }
+
+            // Particles
+            particles.forEach((p, index) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= p.decay;
+                if (p.alpha <= 0) particles.splice(index, 1);
+            });
+
+            // Debris
+            debrisList.forEach((d, index) => {
+                d.x += d.vx;
+                d.y += d.vy;
+                d.angle += d.vRot;
+                if (d.x < -50 || d.x > cW + 50 || d.y > cH + 50) {
+                    debrisList.splice(index, 1);
+                }
+            });
+
+            switch(stage) {
+                case 1:
+                    if (stage1Step === 0) {
+                        altitude = 0;
+                        rocketY = cH - 45;
+                        rocketSpeed = 0;
+                    } else if (stage1Step === 1 && !actionCompleted) {
+                        thrustProgress = Math.max(0, thrustProgress - dt * 14);
+                        
+                        const thrustBar = document.getElementById('thrustProgressBar');
+                        const thrustText = document.getElementById('thrustValueText');
+                        if (thrustBar) thrustBar.style.width = `${thrustProgress}%`;
+                        if (thrustText) thrustText.innerText = `反作用力: ${Math.round(thrustProgress)}%`;
+
+                        altitude = (thrustProgress / 100) * 15;
+                        rocketY = cH - 45 - (thrustProgress / 100) * 20;
+                        rocketSpeed = thrustProgress * 120;
+                    } else if (isBoosted) {
+                        rocketSpeed = Math.min(28000, rocketSpeed + dt * 25000);
+                        altitude += dt * 180;
+                        rocketY = Math.max(cH * 0.35, rocketY - dt * 240);
+                        createThrusterParticles(rocketX, rocketY + 25, 10, true); 
+                    }
+                    break;
+
+                case 2:
+                    altitude += dt * 120;
+                    rocketSpeed = 28000 + (altitude * 40);
+                    rocketY = cH * 0.35;
+                    createThrusterParticles(rocketX, rocketY + 20, 3, false);
+                    break;
+
+                case 2.5:
+                    if (spacecraftSolarDeployed) {
+                        if (spacecraftSolarProgress < 1) {
+                            spacecraftSolarProgress = Math.min(1, spacecraftSolarProgress + dt * 2.0);
+                        }
+                        cruiseProgress += dt / 3.0; 
+                        rocketSpeed = Math.max(12000, 28000 - cruiseProgress * 8000);
+                        altitude = Math.max(300, 1000 - cruiseProgress * 400);
+
+                        rocketX = cW * 0.35 + cruiseProgress * (cW * 0.3);
+                        rocketY = cH * 0.35 + Math.sin(cruiseProgress * Math.PI) * 12;
+                        rocketAngle = 0.12;
+                    } else {
+                        rocketX = cW * 0.35;
+                        rocketY = cH * 0.35;
+                        rocketAngle = 0.12;
+                        rocketSpeed = 28000;
+                        altitude = 1000;
+                    }
+
+                    stars.forEach(s => {
+                        s.x -= dt * s.speed * 1.5;
+                        if (s.x < 0) s.x = cW;
+                    });
+
+                    if (cruiseProgress >= 1) {
+                        enterStage3();
+                    }
+                    break;
+
+                case 3:
+                    if (isBraking) {
+                        rocketSpeed = Math.max(8000, rocketSpeed - dt * 12000); 
+                        createFrictionParticles(rocketX, rocketY + 10, 6); 
+                    } else {
+                        rocketSpeed = 26000;
+                        rocketX += dt * 90;
+                        rocketY += dt * 50;
+                    }
+                    break;
+
+                case 4:
+                    if (!actionCompleted) {
+                        altitude = Math.max(0, altitude - dt * 12);
+                        rocketY = Math.min(cH - 42, cH * 0.2 + (1 - altitude / 85) * (cH * 0.55));
+                        
+                        const altPercent = Math.min(100, Math.max(0, (1 - altitude / 85) * 100));
+                        const pointerEl = document.getElementById('altPointer');
+                        if (pointerEl) pointerEl.style.left = `${altPercent}%`;
+
+                        if (altitude <= 0) {
+                            handleTimeOutFailure();
+                        }
+                    } else if (parachuteOpened) {
+                        altitude = Math.max(0, altitude - dt * 35);
+                        rocketSpeed = Math.max(300, rocketSpeed - dt * 8000);
+                        rocketY = Math.min(cH - 42, rocketY + dt * 18);
+                    }
+                    break;
+
+                case 5:
+                    if (rocketY < cH - 42) {
+                        rocketY += dt * 30;
+                        altitude = Math.max(0, altitude - dt * 10);
+                        rocketSpeed = Math.max(0, rocketSpeed - dt * 800);
+                        createThrusterParticles(rocketX, rocketY + 12, 2, false); 
+                    } else {
+                        rocketY = cH - 42;
+                        altitude = 0;
+                        rocketSpeed = 0;
+
+                        if (!roverDeployed) {
+                            roverDeployed = true;
+                            roverX = rocketX;
+                            isRoverMoving = true;
+                            solarPanelProgress = 0;
+                            isDeployingSolarPanels = false;
+                        }
+
+                        if (isRoverMoving) {
+                            if (roverX < rocketX + 40) {
+                                roverX += dt * 20;
+                            } else {
+                                roverX = rocketX + 40;
+                                isRoverMoving = false;
+                                isDeployingSolarPanels = true;
+                                instructionTextEl.innerText = "⚡ 火星車已駛出！正在展開太陽能板...";
+                            }
+                        } else if (isDeployingSolarPanels) {
+                            solarPanelProgress += dt * 0.8;
+                            if (solarPanelProgress >= 1) {
+                                solarPanelProgress = 1;
+                                isDeployingSolarPanels = false;
+                                showSuccess();
+                            }
+                        }
+                    }
+                    break;
+
+                case -1:
+                    updateFailureAnimation(dt);
+                    break;
+            }
+
+            speedDisplayEl.innerText = Math.round(rocketSpeed).toLocaleString();
+            altDisplayEl.innerText = Math.round(altitude).toLocaleString();
+        }
+
+        function handleTimeOutFailure() {
+            if (stage === 1) {
+                failureType = "boost_fail";
+                if (stage1Step === 0) {
+                    triggerFailure("逾時！", "未能及時選擇發射，火箭未能升空！");
+                } else {
+                    triggerFailure("推進力不足！", "反作用力不足，火箭墜回地面！");
+                }
+            } else if (stage === 2) {
+                failureType = "sep_fail";
+                triggerFailure("錯過分離時機！", "未及時拋棄燃料艙，火箭過重墜毀！");
+            } else if (stage === 2.5) {
+                failureType = "power_fail";
+                triggerFailure("失去電力！", "未展開太陽能板，電力耗盡！");
+            } else if (stage === 3) {
+                failureType = "flyby_fail"; 
+                triggerFailure("未點火減速！", "未進行減速，飛船飛掠火星！");
+            } else if (stage === 4) {
+                failureType = "crash_fail";
+                triggerFailure("開傘太遲！", "未及時開傘，飛船撞擊火星！");
+            }
+        }
+
+        function updateFailureAnimation(dt) {
+            const cH = getCanvasHeight();
+            if (failureType === "power_fail") {
+                rocketX += dt * 30;
+                rocketY += dt * 15;
+                rocketAngle += dt * 0.4;
+            } else if (failureType === "flyby_fail") {
+                rocketX += dt * 700;
+                rocketY -= dt * 350;
+                rocketSpeed = 28000;
+                createThrusterParticles(rocketX, rocketY, 2, false);
+            } else if (failureType === "chute_high_fail") {
+                rocketY += dt * 280;
+                rocketAngle += dt * 1.5;
+                createExplosionParticles(rocketX, rocketY, 2);
+            } else if (failureType === "crash_fail" || failureType === "chute_low_fail") {
+                rocketY = cH - 42;
+                rocketAngle = 0.4; 
+                createExplosionParticles(rocketX, rocketY, 5);
+            } else {
+                rocketY += dt * 260;
+                rocketAngle += dt * 2.5;
+                createExplosionParticles(rocketX, rocketY, 2);
+            }
+        }
+
+        function draw() {
+            const cW = getCanvasWidth();
+            const cH = getCanvasHeight();
+            ctx.clearRect(0, 0, cW, cH);
+
+            drawBackground();
+            drawDebris();
+            drawParticles();
+
+            if (stage > 0 || stage === -1) {
+                drawRocket();
+            }
+
+            if (roverDeployed) {
+                drawRover();
+            }
+        }
+
+        function drawBackground() {
+            const cW = getCanvasWidth();
+            const cH = getCanvasHeight();
+
+            ctx.fillStyle = '#020617';
+            ctx.fillRect(0, 0, cW, cH);
+
+            let starAlpha = 1;
+            if (stage === 1 || stage === 2) {
+                starAlpha = Math.min(1, Math.max(0, (altitude - 30) / 70));
+            }
+            if (starAlpha > 0) {
+                ctx.save();
+                ctx.globalAlpha = starAlpha;
+                ctx.fillStyle = '#ffffff';
+                stars.forEach(s => {
+                    ctx.fillRect((s.x / 400) * cW, (s.y / 250) * cH, s.size, s.size);
+                });
+                ctx.restore();
+            }
+
+            if (stage === 1 || stage === 2 || (stage === -1 && (failureType === 'boost_fail' || failureType === 'sep_fail'))) {
+                let skyAlpha = Math.max(0, 1 - altitude / 120);
+                if (skyAlpha > 0) {
+                    ctx.save();
+                    ctx.globalAlpha = skyAlpha;
+                    let grad = ctx.createLinearGradient(0, cH, 0, 0);
+                    grad.addColorStop(0, '#38bdf8');
+                    grad.addColorStop(0.6, '#0f172a');
+                    grad.addColorStop(1, '#020617');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(0, 0, cW, cH);
+                    ctx.restore();
+                }
+
+                ctx.save();
+                let groundY = cH - 25 + (altitude / 40) * 60;
+                if (groundY < cH) {
+                    ctx.fillStyle = '#166534';
+                    ctx.fillRect(0, groundY, cW, cH - groundY);
+                }
+                ctx.restore();
+
+            } else if (stage === 2.5 || stage === 3 || failureType === 'flyby_fail') {
+                if (stage === 2.5 || failureType === 'power_fail') {
+                    ctx.save();
+                    let earthFade = Math.max(0, 1 - cruiseProgress * 1.2);
+                    if (earthFade > 0) {
+                        ctx.globalAlpha = earthFade;
+                        let earthRadius = Math.max(6, 35 * (1 - cruiseProgress * 0.8));
+                        let earthX = cW * 0.1 - cruiseProgress * (cW * 0.2);
+                        let earthY = cH * 0.85 + cruiseProgress * (cH * 0.15);
+
+                        let gradE = ctx.createRadialGradient(earthX, earthY, 3, earthX, earthY, earthRadius);
+                        gradE.addColorStop(0, '#60a5fa');
+                        gradE.addColorStop(0.6, '#1d4ed8');
+                        gradE.addColorStop(1, 'transparent');
+
+                        ctx.fillStyle = gradE;
+                        ctx.beginPath();
+                        ctx.arc(earthX, earthY, earthRadius, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    ctx.restore();
+                }
+
+                let radius = stage === 2.5 ? 10 + cruiseProgress * 150 : 160;
+                let gradM = ctx.createRadialGradient(cW * 0.85, cH * 0.85, 10, cW * 0.85, cH * 0.85, radius);
+                gradM.addColorStop(0, '#ef4444');
+                gradM.addColorStop(0.7, '#7f1d1d');
+                gradM.addColorStop(1, 'transparent');
+                ctx.fillStyle = gradM;
+                ctx.beginPath();
+                ctx.arc(cW * 0.85, cH * 0.85, radius, 0, Math.PI * 2);
+                ctx.fill();
+
+            } else if (stage === 4 || stage === 5 || failureType === 'crash_fail') {
+                let grad = ctx.createLinearGradient(0, 0, 0, cH);
+                grad.addColorStop(0, '#450a0a');
+                grad.addColorStop(0.5, '#991b1b');
+                grad.addColorStop(1, '#7f1d1d');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, cW, cH);
+
+                ctx.fillStyle = '#7c2d12';
+                ctx.beginPath();
+                ctx.moveTo(0, cH - 28);
+                ctx.quadraticCurveTo(cW * 0.3, cH - 38, cW * 0.6, cH - 28);
+                ctx.quadraticCurveTo(cW * 0.8, cH - 16, cW, cH - 30);
+                ctx.lineTo(cW, cH);
+                ctx.lineTo(0, cH);
+                ctx.fill();
+            }
+        }
+
+        function drawRocket() {
+            ctx.save();
+            ctx.translate(rocketX, rocketY);
+            ctx.rotate(rocketAngle);
+
+            if (spacecraftSolarProgress > 0) {
+                const panelW = 16 * spacecraftSolarProgress;
+                const panelH = 5;
+                
+                ctx.save();
+                ctx.fillStyle = '#0284c7';
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 0.8;
+
+                ctx.beginPath();
+                ctx.rect(-7 - panelW, -2, panelW, panelH);
+                ctx.fill(); ctx.stroke();
+
+                ctx.beginPath();
+                ctx.rect(7, -2, panelW, panelH);
+                ctx.fill(); ctx.stroke();
+
+                ctx.restore();
+            }
+
+            if (parachuteOpened) {
+                ctx.fillStyle = '#f97316';
+                ctx.beginPath();
+                ctx.arc(0, -40, 22, Math.PI, 0, false);
+                ctx.fill();
+
+                ctx.strokeStyle = '#f8fafc';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-22, -40); ctx.lineTo(-3, -14);
+                ctx.moveTo(22, -40); ctx.lineTo(3, -14);
+                ctx.moveTo(0, -40); ctx.lineTo(0, -14);
+                ctx.stroke();
+            }
+
+            if (parachuteTorn) {
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-10, -32); ctx.lineTo(-3, -14);
+                ctx.moveTo(15, -28); ctx.lineTo(3, -14);
+                ctx.stroke();
+
+                ctx.fillStyle = '#ea580c';
+                ctx.beginPath();
+                ctx.arc(-18, -42, 8, 0, Math.PI * 1.5);
+                ctx.fill();
+            }
+
+            // Rocket Body
+            ctx.fillStyle = '#f8fafc';
+            ctx.beginPath();
+            ctx.moveTo(0, -16);
+            ctx.lineTo(7, -3);
+            ctx.lineTo(7, 10);
+            ctx.lineTo(-7, 10);
+            ctx.lineTo(-7, -3);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(-4, -2, 8, 2);
+
+            if (!stageSeparated) {
+                ctx.fillStyle = '#475569';
+                ctx.fillRect(-8, 10, 16, 2);
+
+                ctx.fillStyle = '#cbd5e1';
+                ctx.fillRect(-8, 12, 16, 16);
+
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.moveTo(-8, 20); ctx.lineTo(-12, 28); ctx.lineTo(-8, 28); ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(8, 20); ctx.lineTo(12, 28); ctx.lineTo(8, 28); ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        function drawDebris() {
+            debrisList.forEach(d => {
+                ctx.save();
+                ctx.globalAlpha = d.alpha;
+                ctx.translate(d.x, d.y);
+                ctx.rotate(d.angle);
+
+                ctx.fillStyle = '#64748b';
+                ctx.fillRect(-8, -7, 16, 14);
+                ctx.restore();
+            });
+        }
+
+        function drawRover() {
+            const cH = getCanvasHeight();
+            ctx.save();
+            ctx.translate(roverX, cH - 32);
+
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillRect(-9, -8, 18, 8);
+
+            ctx.fillStyle = '#0284c7';
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 0.8;
+
+            const panelWidth = 10 * solarPanelProgress;
+
+            if (solarPanelProgress > 0) {
+                ctx.beginPath();
+                ctx.rect(-8 - panelWidth, -10, panelWidth, 3);
+                ctx.fill(); ctx.stroke();
+
+                ctx.beginPath();
+                ctx.rect(8, -10, panelWidth, 3);
+                ctx.fill(); ctx.stroke();
+            }
+
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.arc(-7, 2, 2.5, 0, Math.PI * 2);
+            ctx.arc(0, 2, 2.5, 0, Math.PI * 2);
+            ctx.arc(7, 2, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function createThrusterParticles(x, y, count, isSuper) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x + (Math.random() - 0.5) * (isSuper ? 12 : 6),
+                    y: y,
+                    vx: (Math.random() - 0.5) * (isSuper ? 5 : 2),
+                    vy: Math.random() * (isSuper ? 6 : 3) + (isSuper ? 4 : 2),
+                    color: Math.random() > 0.3 ? (isSuper ? '#ef4444' : '#f97316') : '#facc15',
+                    radius: Math.random() * (isSuper ? 4 : 2) + 1.5,
+                    alpha: 1,
+                    decay: Math.random() * 0.06 + 0.03
+                });
+            }
+        }
+
+        function createFrictionParticles(x, y, count) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x + (Math.random() - 0.5) * 15,
+                    y: y + (Math.random() - 0.5) * 8,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: -(Math.random() * 3 + 1),
+                    color: Math.random() > 0.5 ? '#ef4444' : '#f97316',
+                    radius: Math.random() * 3.5 + 1.5,
+                    alpha: 1,
+                    decay: 0.07
+                });
+            }
+        }
+
+        function createExplosionParticles(x, y, count) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: (Math.random() - 0.5) * 10,
+                    color: Math.random() > 0.4 ? '#f97316' : '#ef4444',
+                    radius: Math.random() * 4 + 2,
+                    alpha: 1,
+                    decay: 0.04
+                });
+            }
+        }
+
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+        }
+
+        function startMission() {
+            resizeCanvas();
+            overlayEl.classList.add('hidden');
+            document.getElementById('altZoneContainer').classList.add('hidden');
+            document.getElementById('thrustZoneContainer').classList.add('hidden');
+            
+            const cW = getCanvasWidth();
+            const cH = getCanvasHeight();
+
+            stage = 1;
+            stage1Step = 0;
+            thrustProgress = 0;
+            stageSeparated = false;
+            parachuteOpened = false;
+            parachuteTorn = false;
+            isBoosted = false;
+            isBraking = false;
+            cruiseProgress = 0;
+            spacecraftSolarProgress = 0;
+            spacecraftSolarDeployed = false;
+            roverDeployed = false;
+            isRoverMoving = false;
+            solarPanelProgress = 0;
+            isDeployingSolarPanels = false;
+            rocketX = cW / 2;
+            rocketY = cH - 45;
+            rocketAngle = 0;
+            altitude = 0;
+            rocketSpeed = 0;
+            debrisList = [];
+            particles = [];
+            failureType = "";
+            
+            enterStage1();
+        }
+
+        function renderActionButtons(correctActionId) {
+            currentCorrectAction = correctActionId;
+            actionButtonsGridEl.innerHTML = '';
+
+            const shuffledActions = [...ALL_ACTIONS];
+            for (let i = shuffledActions.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffledActions[i], shuffledActions[j]] = [shuffledActions[j], shuffledActions[i]];
+            }
+
+            shuffledActions.forEach(action => {
+                const btn = document.createElement('button');
+                btn.className = `min-h-[44px] py-2 px-2 rounded-lg font-black text-xs sm:text-sm transition shadow-sm active:scale-95 cursor-pointer flex items-center justify-center text-center ${action.style}`;
+                btn.innerText = action.label;
+                btn.onclick = () => handleChoice(action.id, btn);
+                actionButtonsGridEl.appendChild(btn);
+            });
+        }
+
+        function handleChoice(actionId, btnEl) {
+            if (actionCompleted || stage <= 0) return;
+
+            if (actionId === currentCorrectAction) {
+                if (stage === 1) {
+                    stage1Step = 1;
+                    stageNameEl.innerText = "階段 1：發射升空 (2/2)";
+                    instructionTextEl.innerText = "🔥 連續點擊「噴氣推進」產生反作用力！";
+                    
+                    document.getElementById('thrustZoneContainer').classList.remove('hidden');
+                    
+                    actionButtonsGridEl.innerHTML = `
+                        <button id="rapidTapBtn" onclick="handleStage1Tap()" class="col-span-2 min-h-[48px] py-2.5 bg-gradient-to-r from-red-600 via-amber-500 to-red-600 active:brightness-110 text-white font-black text-sm sm:text-base rounded-xl shadow-md border border-amber-300 active:scale-95 transition pulse-btn cursor-pointer">
+                            🚀 快速連擊噴氣！產生反作用力！
+                        </button>
+                    `;
+                    
+                    actionWindowStart = performance.now();
+                    actionWindowDuration = 6000;
+                    return;
+                }
+
+                if (stage === 4) {
+                    if (altitude > 45) {
+                        failureType = "chute_high_fail";
+                        parachuteTorn = true;
+                        triggerFailure("開傘太高！", `高度 ${Math.round(altitude)}km (>45km)，降落傘被強烈氣流撕裂！`);
+                        return;
+                    } else if (altitude < 15) {
+                        failureType = "chute_low_fail";
+                        triggerFailure("開傘太低！", `高度 ${Math.round(altitude)}km (<15km)，減速不及墜毀！`);
+                        return;
+                    } else {
+                        parachuteOpened = true;
+                        instructionTextEl.innerText = "✅ 正確！於開傘窗口成功開啟降落傘！";
+                        enterStage5();
+                        return;
+                    }
+                }
+
+                actionCompleted = true;
+                timerContainerEl.classList.add('hidden');
+                disableAllActionButtonsExcept(btnEl);
+
+                if (stage === 2) {
+                    stageSeparated = true;
+                    debrisList.push({
+                        x: rocketX,
+                        y: rocketY + 15,
+                        vx: -2.5 - Math.random() * 2,
+                        vy: 2.0 + Math.random() * 1.5,
+                        angle: 0,
+                        vRot: 0.08,
+                        alpha: 1
+                    });
+                    instructionTextEl.innerText = "✅ 正確！成功分離燃料艙！";
+                    setTimeout(startEarthToMarsCruise, 1200);
+
+                } else if (stage === 2.5) {
+                    spacecraftSolarDeployed = true;
+                    instructionTextEl.innerText = "⚡ 正確！太陽能板已展開！";
+
+                } else if (stage === 3) {
+                    isBraking = true;
+                    instructionTextEl.innerText = "✅ 正確！反推減速成功！";
+                    setTimeout(enterStage4, 1200);
+                }
+
+            } else {
+                btnEl.disabled = true;
+                btnEl.className = "min-h-[44px] py-2 px-2 rounded-lg font-bold text-xs bg-slate-800 text-slate-500 opacity-40 cursor-not-allowed border border-slate-700 line-through flex items-center justify-center text-center";
+                instructionTextEl.innerText = "❌ 指令無效！請選擇正確操作！";
+            }
+        }
+
+        function handleStage1Tap() {
+            if (actionCompleted || stage !== 1 || stage1Step !== 1) return;
+
+            thrustProgress = Math.min(100, thrustProgress + 18);
+            createThrusterParticles(rocketX, rocketY + 25, 8, true);
+            canvasContainer.classList.add('shake');
+            setTimeout(() => canvasContainer.classList.remove('shake'), 100);
+
+            if (thrustProgress >= 100) {
+                actionCompleted = true;
+                isBoosted = true;
+                timerContainerEl.classList.add('hidden');
+                document.getElementById('thrustZoneContainer').classList.add('hidden');
+                
+                const tapBtn = document.getElementById('rapidTapBtn');
+                if (tapBtn) {
+                    tapBtn.disabled = true;
+                    tapBtn.className = "col-span-2 min-h-[48px] py-2.5 bg-emerald-600 text-white font-black text-sm rounded-xl opacity-90 cursor-default";
+                    tapBtn.innerText = "✅ 推進力達到 100%！衝破重力升空！";
+                }
+                
+                instructionTextEl.innerText = "✅ 太棒了！反作用力克服了地心吸力，火箭順利升空！";
+                setTimeout(enterStage2, 1200);
+            }
+        }
+
+        function disableAllActionButtonsExcept(correctBtn) {
+            const buttons = actionButtonsGridEl.querySelectorAll('button');
+            buttons.forEach(b => {
+                if (b === correctBtn) {
+                    b.className += " ring-2 ring-emerald-400 scale-105 pulse-btn";
+                } else {
+                    b.disabled = true;
+                    b.className = "min-h-[44px] py-2 px-2 rounded-lg font-bold text-xs bg-slate-800 text-slate-600 opacity-30 cursor-not-allowed flex items-center justify-center text-center";
+                }
+            });
+        }
+
+        function enterStage1() {
+            stage = 1;
+            stage1Step = 0;
+            actionCompleted = false;
+            thrustProgress = 0;
+            stageNameEl.innerText = "階段 1：發射升空";
+            instructionTextEl.innerText = "⚠️ 火箭準備發射！請選出能發射火箭的正確操作！";
+            
+            document.getElementById('thrustZoneContainer').classList.add('hidden');
+            timerContainerEl.classList.remove('hidden');
+            renderActionButtons('boost');
+            
+            actionWindowStart = performance.now();
+            actionWindowDuration = 4500;
+        }
+
+        function enterStage2() {
+            stage = 2;
+            actionCompleted = false;
+            stageNameEl.innerText = "階段 2：級段分離";
+            instructionTextEl.innerText = "⚠️ 推進器燃料耗盡！請選擇指令拋棄燃料艙！";
+
+            timerContainerEl.classList.remove('hidden');
+            renderActionButtons('separate');
+
+            actionWindowStart = performance.now();
+            actionWindowDuration = 4000;
+        }
+
+        function startEarthToMarsCruise() {
+            stage = 2.5;
+            actionCompleted = false;
+            cruiseProgress = 0;
+            spacecraftSolarProgress = 0;
+            spacecraftSolarDeployed = false;
+
+            timerContainerEl.classList.remove('hidden');
+            stageNameEl.innerText = "深空巡航";
+            instructionTextEl.innerText = "⚠️ 飛船進入深空！請選擇指令獲取電力！";
+            
+            renderActionButtons('solar');
+
+            actionWindowStart = performance.now();
+            actionWindowDuration = 4000;
+        }
+
+        function enterStage3() {
+            stage = 3;
+            actionCompleted = false;
+            stageSeparated = true;
+            
+            const cW = getCanvasWidth();
+            const cH = getCanvasHeight();
+            rocketX = cW * 0.3;
+            rocketY = cH * 0.3;
+
+            stageNameEl.innerText = "階段 3：進入火星大氣";
+            instructionTextEl.innerText = "⚠️ 高速接近火星中！請選擇指令降低飛船速度！";
+
+            timerContainerEl.classList.remove('hidden');
+            renderActionButtons('brake');
+
+            actionWindowStart = performance.now();
+            actionWindowDuration = 4000; 
+        }
+
+        function enterStage4() {
+            stage = 4;
+            actionCompleted = false;
+            isBraking = false;
+            parachuteTorn = false;
+            
+            const cW = getCanvasWidth();
+            const cH = getCanvasHeight();
+            rocketX = cW * 0.5;
+            rocketY = cH * 0.2;
+            rocketAngle = 0;
+            altitude = 85;
+
+            stageNameEl.innerText = "階段 4：降落火星";
+            instructionTextEl.innerText = "⚠️ 觀察高度！待降至【黃金窗口】時開啟降落傘！";
+
+            document.getElementById('altZoneContainer').classList.remove('hidden');
+            timerContainerEl.classList.remove('hidden');
+            renderActionButtons('parachute');
+
+            actionWindowStart = performance.now();
+            actionWindowDuration = 7000;
+        }
+
+        function enterStage5() {
+            stage = 5;
+            actionCompleted = true;
+            parachuteOpened = true;
+            timerContainerEl.classList.add('hidden');
+            stageNameEl.innerText = "階段 5：著陸火星";
+            instructionTextEl.innerText = "✅ 降落傘成功張開！反推火箭啟動平穩著陸...";
+            
+            actionButtonsGridEl.innerHTML = `
+                <div class="col-span-2 min-h-[44px] py-2.5 rounded-lg font-black text-center bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-xs sm:text-sm flex items-center justify-center">
+                    🎉 著陸程序順利進行中...
+                </div>
+            `;
+        }
+
+        function triggerFailure(title, reason) {
+            stage = -1;
+            timerContainerEl.classList.add('hidden');
+            actionButtonsGridEl.innerHTML = `
+                <div class="col-span-2 min-h-[44px] py-2.5 rounded-lg font-black text-center bg-red-950 text-red-400 border border-red-500/40 text-xs sm:text-sm flex items-center justify-center">
+                    ❌ 任務宣告失敗
+                </div>
+            `;
+
+            setTimeout(() => {
+                overlayTitleEl.innerText = "❌ 任務失敗：" + title;
+                overlayTitleEl.className = "text-xl sm:text-2xl font-black text-red-500 mb-1.5";
+                overlayDescEl.innerText = reason;
+                startBtnEl.innerText = "重新挑戰";
+                overlayEl.classList.remove('hidden');
+            }, 1400);
+        }
+
+        function showSuccess() {
+            setTimeout(() => {
+                overlayTitleEl.innerText = "🎉 任務成功！";
+                overlayTitleEl.className = "text-xl sm:text-2xl font-black text-emerald-400 mb-1.5";
+                overlayDescEl.innerText = "恭喜你！探測車順利著陸並展開太陽能板，任務成功！";
+                startBtnEl.innerText = "再玩一次";
+                overlayEl.classList.remove('hidden');
+            }, 600);
+        }
+
+        // Initialize engine on window load
+        window.onload = function() {
+            resizeCanvas();
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
